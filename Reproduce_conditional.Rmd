@@ -1,0 +1,243 @@
+---
+title: "Reproduce conditional approach"
+author: "XC"
+date: "6/16/2021"
+output:
+  pdf_document:
+    fig_caption: yes
+csl: apa.csl
+Extension: raw_tex
+
+---
+
+\newcommand{\Deltab} {\Delta}
+\newcommand{\intd} {\textrm{d}}
+\newcommand{\Bmat} {B}
+\newcommand{\Cmat} {C}
+\newcommand{\cmat} {c}
+\newcommand{\Imat} {I}
+\newcommand{\bvec} {b}
+\newcommand{\svec} {s}
+\newcommand{\uvec} {u}
+\newcommand{\omegab} {\omega}
+\newcommand{\s}{s}
+\newcommand{\h}{h}
+\renewcommand{\b}{b}
+\newcommand{\e}{e}
+\newcommand{\z}{z}
+\renewcommand{\v}{v}
+\renewcommand{\u}{u}
+\newcommand{\w}{w}
+\renewcommand{\d}{d}
+\newcommand{\Z}{Z}
+\newcommand{\x}{x}
+\newcommand{\Y}{Y}
+\newcommand{\Yvec}{Y}
+\newcommand{\Zvec}{Z}
+\newcommand{\epsilonb}{\varepsilon}
+\newcommand{\bI}{I}
+\newcommand{\bB}{B}
+\newcommand{\bbeta}{\beta}
+\newcommand{\thetab}{\theta}
+\newcommand{\bzero}{0}
+\newcommand{\bSigma}{\Sigma}
+\newcommand{\E}{E}
+\newcommand{\cov}{\mathrm{cov}} 
+\newcommand{\var}{\mathrm{var}}
+\newcommand{\tr}{\mathrm{tr}}
+\newcommand{\diag}{\mathrm{diag}}
+\newcommand{\vect}{\mathrm{vec}}
+\newcommand{\Gau}{\mathrm{Gau}}
+\newcommand{\RR}{\mathbb{R}}
+\newcommand{\T}{{ \mathrm{\scriptscriptstyle T} }}
+\renewcommand{\figurename}{Fig.}
+
+## Setting up
+
+\begin{equation*}
+\begin{array}{ll}
+\textrm{Model 1 (independent Mat{\'e}rns):} &b_o(\h) \equiv 0, \\
+\textrm{Model 2 (pointwise dependence):} &b_o(\h) \equiv A\delta(\h), \\
+\textrm{Model 3 (diffused dependence):} & \textrm{Model 4 with~} \Deltab = 0 \\
+\textrm{Model 4 (asymmetric dependence):} &b_o(\h) \equiv \left\{\begin{array}{ll} A\{1 - (\|\h - \Deltab\|/r)^2\}^2, & \| \h - \Deltab\| \le r \\ 0, & \textrm{otherwise}, \end{array} \right. 
+\end{array}
+\end{equation*}
+
+where $\Deltab = (\Delta_1, \Delta_2)^\T$ is a shift-parameter vector that captures asymmetry,
+$r$ is the aperture parameter,
+and $A$ is a scaling parameter.
+
+In Models 3 and 4, $b_o(\h)$ is a shifted bisquare function defined on $\mathbb{R}^2$.
+
+The covariance functions $C_{11}(\cdot)$ and $C_{2|1}(\cdot)$ are Matérn covariance functions. 
+
+
+For each model we also consider a \emph{reversed} dependence, where we switch $Y_2$ and $Y_1$. This gives us a total of eight models to fit and compare.
+
+
+```{r}
+### Model choice
+
+model_names <- c("independent","pointwise","moving_average_delta0","moving_average")
+image_path <- "../paper/art"
+show_figs <- 1              ## show figs in document
+print_figs <- 0             ## Print figures to file (leave =0)
+LK_analysis <- 0            ## log-likelihood analysis 
+LOO_analysis <- 0           ## LOO analysis 
+Shifted_Pars_estimation <- 0  ## Fit shifted parimonious Matern
+RF_estimation <- 0            ## Carry out LOO with RFields
+useMPI <- 0                                 ## MPI backend available?
+```
+
+
+
+## The data
+The data were made available through the package \texttt{RandomFields}.
+We first load the data
+
+```{r}
+data(weather, package = "RandomFields")
+weather <- weather %>% data.frame()
+weather %>% head(4) %>% print()
+```
+
+The `weather` table contains four fields, with latitude, longitude, pressure forecasting errors, and temperature forecasting errors for December 13, 2003 at 4 p.m. in the North American Pacific Northwest.
+
+Since pressure and temperature have different units, we find a scaling factor by taking the ratio of the sample variances of the two variates, and computing its square root.
+
+We will use this factor to scale the pressure variable.
+
+```{r}
+p_scale <- var(weather$pressure) / var(weather$temperature) %>% 
+  sqrt() %>%
+  as.numeric()
+```
+  
+
+From this data frame we extract $Z_1$ and $Z_2$ and concatenate them into one long vector $Z$ through a function `form_Z`.
+
+The vectors $Z_1$ and $Z_2$ are inverted if the model being analysed is greater than 4 (reversed model).
+
+We also define `m1` as the number of observations of $Y_1$, `m2` as the number of observations of $Y_2$ and `m` as the total number of observations.
+
+```{r}
+form_z <- function(model_num, scale = T){
+  Z1 <- matrix(weather$temperature)
+  Z2 <- matrix(weather$pressure)
+  
+  if(scale) Z2 <- Z2 / p_scale   # scale pressure
+  
+  if(model_num > 4) {
+    temp <- Z1   # move temperature values out of Z1 name into temp 
+    Z1 <- Z2     # pressure values go into name Z1
+    Z2 <- temp   # move original temperature values into Z2
+  }
+  
+  Z <- rbind(Z1, Z2)  # concatenate
+}
+
+
+## Number of observations
+m1 <- nrow(weather)
+m2 <- nrow(weather)
+m = m1 + m2
+I_m1 <- Diagonal(m1)
+```
+
+
+## Process Discretisation
+
+We approximate the processes as a sum of elemental basis functions (tent functions) constructed on a triangulation.
+
+The triangulation is formed using the mesher in the `INLA` package,
+while we provide a tailored function in the package `bicon`, `initFEbasis`
+
+
+?initFEbasis: 
+initialise a finite element basis which initialises an object of class FEBasis which defines a set of elemental ‘tent’ basis functions over a pre-specified triangulation in 2-D
+
+
+
+which takes information from the `INLA` mesher and casts it into a `Mesh` object
+
+We provide several methods associated with the `Mesh` class which will be useful for plotting later on.
+
+Importantly, the `Mesh` object also contains information on the areas of the elements in the Voronoi tesselation, which will be used to approximate the integrations.
+
+
+```{r, warning=F, message=F}
+## discretizing process Y1,Y2 using triangular grid
+
+## constructing mesh
+mesh <- inla.mesh.2d(loc = weather[c("lon", "lat")],
+             cutoff = 0,        # minimum allowed dist between pts, two pts further apart at most of this value will be replaced by single point
+             max.edge = 0.75,   # the largest allowed tri edge length
+             offset = 4)        # automatic extension dist
+
+mesh_locs <- mesh$loc[, 1:2]  # [1:2071, 1:2]
+
+
+## compute distances as in Gneiting(2010) -- greate-circle distance
+
+### Greate circle distance: shortest distance between two points on the surface of a sphere, measured along the surface of the sphere not interior
+
+d <- RFearth2dist(as.matrix(mesh_locs)) # transform coods from earth (ellipsoid) to cartesian
+D <- as.matrix(d)
+Dvec <- as.double(c(D))  
+
+```
+
+
+### understandings 1
+```{r}
+
+str(mesh)
+head(mesh$loc, 3)
+tail(mesh$loc, 3)
+
+d <- RFearth2dist(as.matrix(mesh_locs))
+d_matrx <- as.matrix(d)
+rm(d_matrx)
+rm(d)
+
+dim(D) #2071 2071
+```
+
+```{r}
+length(Dvec) # 2071 * 2071 = 4289041
+```
+
+
+```{r}
+## obseration locs distance in cartesian
+
+Dobs <- as.matrix(RFearth2dist(as.matrix(weather[c("lon", "lat")])))
+
+Dobs_vec <- c(Dobs)
+```
+#### understandings 2
+```{r}
+
+obs_locs <- weather[c("lon", "lat")] ## df 157 obs, 2 vars
+str(obs_locs)
+
+obs_locs <- as.matrix(weather[c("lon", "lat")]) # [1:157, 1:2]
+
+length(Dobs_vec)  # 24649
+```
+
+
+
+```{r}
+## Cast into custom Mesh object
+## define a set of tent basis functions over a prespecified triangulation in 2D
+Mesh <- initFEbasis(p = mesh_locs,
+            t = mesh$graph$tv,
+            K = mesh$graph$vv)
+
+str(Mesh)
+```
+
+
+
+
