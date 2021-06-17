@@ -10,6 +10,32 @@ Extension: raw_tex
 
 ---
 
+```{r load-packages, include=FALSE}
+library(INLA)
+
+library(dplyr)
+library(tidyr)
+library(Matrix)
+
+library(ggplot2)
+library(gridExtra)
+library(grid)
+library(extrafont)
+
+library(maptools)
+library(mapproj)
+library(RandomFields)
+
+library(verification)
+
+library(foreach)
+library(doParallel)
+
+library(bicon)
+```
+
+
+
 \newcommand{\Deltab} {\Delta}
 \newcommand{\intd} {\textrm{d}}
 \newcommand{\Bmat} {B}
