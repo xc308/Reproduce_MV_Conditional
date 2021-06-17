@@ -15,6 +15,14 @@
   #@ Dim: the dimensions of the matrix.
 
 
+## Hence the triplet representations:
+# the simplest representation of a sparse matrix is as a triplet 
+# of an integer vector i giving the row numbers,
+# an integer vector j giving the column numbers, 
+# and a numeric vector x giving the non-zero values in the matrix
+
+
+
 # Examples:
 m <- Matrix(0+1:28, nrow = 4)
 m
@@ -62,3 +70,16 @@ T2
 
 nnzero(T2) # number of non-zero values
 # 3
+
+
+
+T3 <- new("dgTMatrix",
+    i = as.integer(c(0, 1, 3, 5)),
+    j = as.integer(c(2, 1, 4, 1)),
+    x = as.double(2:5), 
+    Dim = 6:5)
+
+T3
+
+
+
