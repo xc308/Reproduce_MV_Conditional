@@ -82,4 +82,22 @@ T3 <- new("dgTMatrix",
 T3
 
 
+#--------------------------#
+# Classes of Triplet Matrix
+#--------------------------#
+
+getClass("TsparseMatrix")
+
+
+
+
+
+
+
+
+
+
+
+
+
 
