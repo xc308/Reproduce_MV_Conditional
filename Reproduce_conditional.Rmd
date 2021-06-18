@@ -236,11 +236,12 @@ length(Dvec) # 2071 * 2071 = 4289041
 
 ```{r}
 ## obseration locs distance in cartesian
-
 Dobs <- as.matrix(RFearth2dist(as.matrix(weather[c("lon", "lat")])))
 
 Dobs_vec <- c(Dobs)
 ```
+
+
 #### understandings 2
 ```{r}
 
@@ -261,8 +262,88 @@ Mesh <- initFEbasis(p = mesh_locs,
             t = mesh$graph$tv,
             K = mesh$graph$vv)
 
-str(Mesh)
+head(str(Mesh))
 ```
+
+
+
+
+## Establish the dimension of our grids
+
+Since we will be evaluating $Y_1$ and $Y_2$ on the same grid, `n1` = `n2`.
+
+
+```{r}
+## Mesh size
+n1 <- nrow(mesh_locs)   # 2071
+n2 <- nrow(mesh_locs)
+n <- n1 + n2            # 4142
+``` 
+
+
+As in the first document (simulation example in Section 3.2), we will approximate the integration using the rectangular rule.
+
+When using finite elements, this reduces to using the areas of the Voronoi tessellation as integration weights.
+
+
+We first compute the vector of displacements $h$ which will be of length (`n2` $\times$ `n1`) 
+
+
+```{r}
+## mesh integration points
+h <- matrix(0, n1 * n2, 2)
+area <- rep(0, n1 * n2)
+for (i in 1:n2) {
+  h[((i - 1) * n1 + 1):(i * n1), ] <- t(t(mesh_locs) - mesh_locs[i, ])
+  area[((i - 1) * n1 + 1):(i * n1)] <- Mesh["area_tess"]
+}
+
+h1_double <- as.double(h[, 1])
+h2_double <- as.double(h[, 2])
+
+```
+
+The displacements (`h1`,`h2`) and the areas `areas` will be used to construct the matrix `B` using the function `bisquare_B`.
+
+
+## Organising the observations
+In order to map the process to the observations we construct an incidence matrix, which contains a `1` wherever the observation coincides with a vertex on the triangulation and a `0` otherwise. 
+
+
+The dimension of this incidence matrix is (`m1` + `m2`) $\times$ (`n1` + `n2`), where `m1`, `m2`, are the number of observations in $Z_1$, $Z_2$.
+
+
+Since in this problem we have co-located (shared) observations, we find the incidence matrix for one of the observations, $Z_1$, 
+
+and then form the whole incidence matrix by simply constructing a block diagonal matrix (using `bdiag`).  
+We find the points with which the observation locations coincide by using the function `left_join`, which returns an `NA` if no observation coincides with the vertex.
+
+
+```{r}
+mesh_locs <- data.frame(lon = mesh_locs[, 1], lat = mesh_locs[, 2])
+
+indx <- which(!is.na(left_join(mesh_locs, weather)$temperature)) # index of coincidence
+
+length(indx)                   # 157
+
+C1 <- sparseMatrix(i = 1:m1, j = indx, 
+                   x = 1, dims = c(m1, n1))  # incidence matrix of Z1
+
+C <- bdiag(C1, C1)    # incidence matrix of Z1, Z2
+```
+
+
+
+## Maximum likelihood estimation
+
+Next, we require a function that, given the parameter vector `theta` and the model number `model_num`, returns the required matrices and vectors used in fitting. These are the matrices
+\begin{equation}\label{eqn:cov-matrix}
+\textrm{\texttt{SY}} =  \begin{bmatrix}\bSigma_{11} & \bSigma_{11}\bB^\T \\ \bB \bSigma_{11} & \bSigma_{2\mid 1}+\bB\bSigma_{11}\bB^\T \end{bmatrix}, ~~\qquad \textrm{\texttt{So}} =  \begin{bmatrix}\tau_1^2I_m  & 0\\ 0 & \tau_2^2I_m  \end{bmatrix}.                                
+\end{equation}
+
+
+We then add these two together to obtain the matrix $\textrm{cov}((\Yvec_1^\T,\Yvec_2^\T)^\T)$ which, recall that for this example is identical to $\textrm{cov}((\Zvec_1^\T,\Zvec_2^\T)^\T)$ since the data is equal to the process at the observed locations. If `whole_mesh` is `TRUE`, then the process covariance matrix is evaluated over the entire mesh (used for cokriging at unobserved locations).
+
 
 
 
