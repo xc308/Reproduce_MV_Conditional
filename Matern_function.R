@@ -1,6 +1,17 @@
 #=====================#
-# Mat{\'e}rn function
+# Mat{\'e}rn functions
 #=====================#
+
+Matern32 <- function(r,var,kappa) { # r is d or h
+  X <- covMat3_call(r,var,kappa)
+  matrix(X,nrow=sqrt(length(r)))  # cov matrix is n*n
+}
+
+Matern21 <- function(r, var, kappa) {
+  X <- covMat1_call(r, var, kappa)
+  matrix(X, nrow = sqrt(length(r))) 
+}
+
 
 
 "Matern" <- function(d, scale = 1, phi = scale, smoothness = 0.5, nu = smoothness, 
