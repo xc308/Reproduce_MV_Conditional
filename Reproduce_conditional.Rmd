@@ -89,6 +89,7 @@ library(bicon)
 \end{array}
 \end{equation*}
 
+
 where $\Deltab = (\Delta_1, \Delta_2)^\T$ is a shift-parameter vector that captures asymmetry,
 $r$ is the aperture parameter,
 and $A$ is a scaling parameter.
@@ -336,15 +337,43 @@ C <- bdiag(C1, C1)    # incidence matrix of Z1, Z2
 
 ## Maximum likelihood estimation
 
+Since the optimisation algorithm requires a parameter vector of the same length (irrespective of the model number)
+
+we first define a function `append_theta` that takes the parameter vector associated with the model in question and appends it so it is of the required size (in this case of length 12).
+
+
+```{r,message=F}
+append_theta <- function(theta,model_num) {
+  if(model_num %in% c(1,5)) {
+    theta <- c(theta,rep(0,4))
+    theta[10] <- 0.001
+  } else if(model_num %in% c(2,6)) {
+    theta <- c(theta,rep(0,3))
+    theta[10] <- 0.001
+  } else if(model_num %in% c(3,7)) {
+    theta <- c(theta,rep(0,2))
+  }
+  theta
+}
+```
+
+
+the <- c(0, 3, 2.3)
+c(the, rep(0, 4))
+
+
 Next, we require a function that, given the parameter vector `theta` and the model number `model_num`, returns the required matrices and vectors used in fitting. These are the matrices
 \begin{equation}\label{eqn:cov-matrix}
 \textrm{\texttt{SY}} =  \begin{bmatrix}\bSigma_{11} & \bSigma_{11}\bB^\T \\ \bB \bSigma_{11} & \bSigma_{2\mid 1}+\bB\bSigma_{11}\bB^\T \end{bmatrix}, ~~\qquad \textrm{\texttt{So}} =  \begin{bmatrix}\tau_1^2I_m  & 0\\ 0 & \tau_2^2I_m  \end{bmatrix}.                                
 \end{equation}
 
 
-We then add these two together to obtain the matrix $\textrm{cov}((\Yvec_1^\T,\Yvec_2^\T)^\T)$ which, recall that for this example is identical to $\textrm{cov}((\Zvec_1^\T,\Zvec_2^\T)^\T)$ since the data is equal to the process at the observed locations. If `whole_mesh` is `TRUE`, then the process covariance matrix is evaluated over the entire mesh (used for cokriging at unobserved locations).
+We then add these two together to obtain the matrix $\textrm{cov}((\Yvec_1^\T,\Yvec_2^\T)^\T)$ which, recall that for this example is identical to $\textrm{cov}((\Zvec_1^\T,\Zvec_2^\T)^\T)$ since the data is equal to the process at the observed locations. 
+
+If `whole_mesh` is `TRUE`, then the process covariance matrix is evaluated over the entire mesh (used for cokriging at unobserved locations).
 
 
-
+bisquare_B
+View(makeS)
 
 

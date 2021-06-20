@@ -2,6 +2,8 @@
 # Mat{\'e}rn functions
 #=====================#
 
+
+
 Matern32 <- function(r,var,kappa) { # r is d or h
   X <- covMat3_call(r,var,kappa)
   matrix(X,nrow=sqrt(length(r)))  # cov matrix is n*n
@@ -31,6 +33,7 @@ Matern21 <- function(r, var, kappa) {
   
   # call to Bessel function from R base package
   return(phi * con * (d)^nu * besselK(d, nu))
+  # return vector
 }
 
 

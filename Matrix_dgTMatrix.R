@@ -78,8 +78,21 @@ T3 <- new("dgTMatrix",
     j = as.integer(c(2, 1, 4, 1)),
     x = as.double(2:5), 
     Dim = 6:5)
+length(6:5)
 
 T3
+
+r1 <- 3
+idx <- c(1, 2, 3)
+c1 <- 4
+
+sparseMatrix(i = 1:r1, j = idx, x = 1, 
+             dims = c(r1, c1))
+
+
+
+
+
 
 
 #--------------------------#
