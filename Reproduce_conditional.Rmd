@@ -373,7 +373,146 @@ We then add these two together to obtain the matrix $\textrm{cov}((\Yvec_1^\T,\Y
 If `whole_mesh` is `TRUE`, then the process covariance matrix is evaluated over the entire mesh (used for cokriging at unobserved locations).
 
 
-bisquare_B
-View(makeS)
+```{r}
+construct_mats <- function(theta, model_num, whole_mesh = F) {
+  
+  nu1 <- theta[7]
+  nu2 <- theta[8]
+  
+  B <- theta[9] * Diagonal(n1)
+  # Automatically zero if Model 1
+  # Diagnoal(n1): I_n1
+  # process level
+  
+  
+  if (model_num %in% c(3, 4, 7, 8)) {
+    # process level
+    B <- theta[9] * bisquare_B(h1 = h1_double, 
+                          h2 = h2_double, 
+                          delta = theta[11:12], 
+                          r = theta[10],
+                          n1 = n1, 
+                          n2 = n2, 
+                          areas = areas)
+  }
+  
+  C1B <- C1 * B # [obs * proc] * [proc *proc]
+  
+  
+  ## Form matrices (scaled pressure)
+  S11  <- makeS(r = Dobs_vec, var = theta[3], kappa = theta[5], nu = nu1) # obs level
+  S2_1 <- makeS(r = Dobs_vec, var = theta[4], kappa = theta[6], nu = nu2) # obs level  
+  
+    # S12, S22 differs by interaction functions
+  if (model_num %in% c(3, 4, 7, 8) | whole_mesh == T) {
+    S11_big <- makeS(r = Dvec, var = theta[3], kappa = theta[5], nu = nu1) # proc lvl 
+    S12 <- C1B %*% (S11_big %*% t(C1))                              # proc to obs lvl
+    S21 <- t(S12)
+    S22 <- S2_1 + forceSymmetric(C1B %*% forceSymmetric(S11_big) %*% t(C1B))
+  } else {
+    S12 <- S21 <- S11 * theta[9]
+    S22 <- S2_1 + S11 * theta[9]^2
+  }
+  
+  if (whole_mesh == T) {
+    S11 <- S11_big       # proc lvl
+    S12 <- B %*% S11     # proc lvl
+    S21 <- t(S12)
+    S22 <- S2_1 %*% C1  + crossprod(chol(S11) %*% t(B))
+  }
+  
+  
+  ## Form matrices (Unscaled pressure)
+  S11_true <- ifelse (model_num > 4, p_scale^2, 1) * S11# if Mod>4, S11 ref pres, scale
+  S22_true <- ifelse(model_num < 5, p_scale^2, 1) * S22 # if mod<5, S22 ref pres, scale    
+  S12_true <- S12 * p_scale
+  S21_true <- S21 * p_scale
+  
+  SY_true <- rbind(cbind(S11_true, S12_true), cbind(S21_true, S22_true)) %>% as("dgeMatrix")
+  
+  Im1 <- Imat(m1)
+  So_true <- bdiag(ifelse(model_num < 5, 1, p_scale^2) * theta[1] * Im1,   
+                  ifelse(model_num < 5, p_scale^2, 1) * theta[2] * Im1)
+                  # Mod 1-4, theta1 ref temp, don't scale; theta1 ref pres, scale
+                  # obs lvl
+  
+  if (whole_mesh == T) {
+    So_true <- t(C) %*% So_true %*% C    # proc lvl; 2m1 * 2m1, so C, not C1
+  }
+  
+  list(SY = SY_true, So = So_true, Z = form_Z(model_num,scale=F))
+}
+
+```
+
+
+
+
+
+construct_mats <- function(theta,model_num,whole_mesh=F) {
+  
+  nu1 <- theta[7]
+  nu2 <- theta[8]
+  
+  B <- theta[9]*Diagonal(n1) 
+  # Automatically zero if Model 1
+  # D
+  
+  if(model_num %in% c(3,4,7,8)) {
+    B <- theta[9]*bisquare_B(h1_double,h2_double,
+                             delta=theta[11:12], # Zero for Model with no shift
+                             r=theta[10],
+                             n1 = n1,
+                             n2 = n2,
+                             areas = areas)
+  }
+  C1B <- C1 %*% B
+
+## Form matrices (scaled pressure)
+  S11 <- makeS(r = Dobsvec,var = theta[3],
+                 kappa = theta[5],nu = nu1)
+  S2_1 <- makeS(r = Dobsvec,var = theta[4],
+                  kappa = theta[6],nu = nu2)
+  if(model_num %in% c(3,4,7,8) | whole_mesh==TRUE) {
+    S11_big <- makeS(r = Dvec,var = theta[3],
+                     kappa = theta[5],nu = nu1)
+    S21 <- C1B %*% (S11_big %*% t(C1))
+    S12 <- t(S21)
+    S22 <- S2_1 + forceSymmetric(C1B %*% forceSymmetric(S11_big) %*% t(C1B))
+  } else {
+    S21 <- S12 <- theta[9]*S11 
+    S22 <- S2_1 + theta[9]^2 * S11
+  }
+  
+  if(whole_mesh) {
+    S11 <- S11_big
+    S2_1 <- makeS(r = Dvec,var = theta[4],
+                  kappa = theta[6],nu =nu2)
+    S21 <- B %*% S11_big
+    S12 <- t(S21)
+    S22 <- S2_1 + Matrix::crossprod(chol(S11_big) %*% t(B))
+  }
+  
+  
+   ## Form matrices (Unscaled pressure)
+  S11_true <- ifelse(model_num > 4,P_scale^2,1) * S11
+  S12_true <- P_scale * S12
+  S21_true <- P_scale * S21
+  S22_true <-  ifelse(model_num < 5, P_scale^2,1) *S22
+  
+  SY_true <- rBind(cBind(S11_true,S12_true),
+                   cBind(S21_true,S22_true)) %>% as("dgeMatrix")
+  
+  So_true <- bdiag(ifelse(model_num < 5,1,P_scale^2) * theta[1]*I_m1,
+                   ifelse(model_num < 5,P_scale^2,1) * theta[2]*I_m1)
+  
+  if(whole_mesh) So_true <- t(C) %*% So_true %*% C
+  
+  list(SY = SY_true, So = So_true, Z = form_Z(model_num,scale=F))
+}
+
+
+
+
 
 
