@@ -775,7 +775,7 @@ cokrig <- function(X, i = NULL) {
   
     Z <- X$Z
     Q <- chol2inv(chol(C %*% SS %*% t(C))) %>% as("dgeMatrix")  # proc to obs lvl
-    mu_pred <- SS %*% t(C) %*% Q %*% Z %>% as.numeric()
+    mu_pred <- SS %*% t(C) %*% Q %*% Z %>% as.numeric()  # SS %*% t(C) = cov(Y,Z) = Co
     #var_pred <- diag(SS - SS %*% t(C) %*% Q %*% C %*% t(SS)) %*% as.numeric() 
     #var_pred <- diag(SS - SS %*% t(C) %*% Q %*% C %*% SS) %*% as.numeric()
     
@@ -871,7 +871,7 @@ The two loops below iterate over the observations and models.
   pred <- foreach(i = 1:m1, .combine = "rbind", 
           .packages = c("Matrix", "bicon", "dplyr", "foreach")) %dopar% {
             
-            fit.Model <- fit_all_data
+            fit.Model <- fit_all_data  # with fitted pars so can predict
             
             ## loop over each model (not parallised)
             pred <- foreach(j = seq_along(fit.Model), .combine = "rbind") %do% {
@@ -899,7 +899,7 @@ The two loops below iterate over the observations and models.
 ```
 
 ```{r}
-save(pred, file = paste0("./all_predictions.rda"))
+save(pred, file = paste0("./Results/all_predictions.rda"))
 ```
 
 
@@ -1023,8 +1023,150 @@ optim_est_sh_pars <- optim(par = c(0.5, -1, 1/95.88, 0.6, 1.6, -0.5, 0.019,
 ```
 
 ```{r}
-save(optim_est_sh_pars, file = "./Results/Shifted_Pars_est_results.rda")
+save(optim_est_sh_pars, file = "./Results/
+     Shifted_Pars_est_results.rda")
 ```
+
+```{r}
+
+print(paste0("Log-lik. of shifted parsimonious model is ",  -optim_est_sh_pars$value))
+
+print(paste0("AIC of the shifted parsimonious model is ", 
+             optim_est_sh_pars$value * 2 + 2 * 10)) # 10 pars
+
+```
+
+
+For cokriging and for cross-validation we follow the same approach as earlier.
+
+```{r}
+theta_lk <- optim_est_sh_pars$par
+theta_lk[8] <- theta_lk[8] * 100
+theta_lk[10] <- theta_lk[10] * 10000
+
+X <- sh_pars_mats(theta = theta_lk)
+
+## loop over each obs
+print("Running CV for shifted parsimonious model...")
+pred_sh_pars <- foreach(i = 1:m1, .combine = "rbind") %do% {
+  X <- sh_pars_mats(theta = theta_lk)
+  cbind(cokrig(X, i = c(i, i + m1)), model_num = 1)
+}
+```
+
+
+## Processing the results
+
+The following code is only documented in-line since it just involves data manipulation for obtaining the results shown in the paper. 
+For verification we find the mean absolute error (MAE), the root mean-squared prediction error (RMSPE) and the continuous probability rank score [CRPS, @Gneiting_2005].
+
+```{r}
+### Analyse results
+
+## put data set into long format
+a <- apply(Dobs, 1, function(x) sort(x)[1:2])
+str(a) # 157:157
+
+apply(Dobs)
+
+```
+
+
+```{r}
+head(Dobs)
+```
+```{r,message=FALSE}
+### Analyse results
+
+## put data set into long format
+weather_long <- mutate(weather,loc_num = 1:nrow(weather)) %>%
+  mutate(sum_D = apply(Dobs,1,function(x) sum(sort(x)[1:2]))) %>%
+  gather(process,z,temperature,pressure,convert = TRUE)
+
+
+## Utility wrapper around the crps function
+crps_wrapper <- function(Z,mu,sd) {
+  crps(obs = Z, pred = cbind(mu,sd))$crps
+  
+  # obs: A vector of observations.
+  # pred: A vector or matrix of the mean and standard deviation of a normal distribution
+  # crps: Continous ranked probability scores
+  # CRPS: Mean of crps
+}
+
+
+```
+
+
+#### understanding 
+```{r}
+head(mutate(weather, loc_num = 1:nrow(weather)) %>%
+       mutate(sum_D = apply(Dobs, 1, function(x) sum(sort(x)[1:2]))))
+
+```
+
+```{r}
+head(mutate(weather,loc_num = 1:nrow(weather)) %>%
+       mutate(sum_D = apply(Dobs, 1, function(x) sum(sort(x)[1:2]))) %>%
+       gather(key = "process", value = "z", temperature, pressure, convert = T)
+       #gather(process, z, temperature, pressure, convert = T)
+       )
+
+```
+
+```{r}
+str(pred)
+head(pred, 30)
+tail(pred, 50)
+```
+
+```{r}
+sanitize_results <- function(pred) {
+  
+  ## put dataset into long format
+  pred2 <- mutate(pred,                                          # take LOOCV pred
+                  process = ifelse((model_num < 5 & i <= m1) |   # assign row name
+                                     (model_num >= 5 & i > m1), "temp", "pressure"),
+                  loc_num = ((i - 1) %% m1) + 1) %>%             # add loc_num
+    left_join(weather_long) %>%                                  # join in weather long
+    dplyr::select(-i, -z)
+  
+  
+  results <- pred2 %>%
+    group_by(process, model_num) %>%                             # group by process, mod
+    summarise(MAE = mean(abs(mu_pred - Z)),                      # Mean absolute error
+              MAE_se = sd(abs(mu_pred - Z)) / sqrt(m1 - 1),      # s.e. of MAE
+              Bias = mean(mu_pred - Z),                          # bias
+              Bias_se = sd(mu_pred - Z) / sqrt(m1 - 1),          # s.e. of bias
+              Bias_normalized  = mean(mu_pred - Z) / sqrt(var_pred),  # normalized by sd
+              RMSPE = sqrt(mean((mu_pred - Z)^2)),                    # root MS pred E
+              CRPS = mean(crps_wrapper(Z, mu_pred, sqrt(var_pred))),  # mean of crps
+              CRPS_se = sd(crps_wrapper(Z, mu_pred, sqrt(var_pred))) / sqrt(m1 - 1))
+  
+  results
+
+}
+
+results <- sanitize_results(pred = pred)
+print(results)
+```
+
+
+Next we do the same for the shifted parsimonious Matérn model.
+
+```{r}
+str(pred_sh_pars) 
+```
+
+```{r}
+
+sh_pars_results <- sanitize_results(pred_sh_pars) %>%
+  dplyr::select(model_num, MAE, RMSPE, CRPS)
+
+sh_pars_results$model_num <- "Shifted_Parsim"
+head(sh_pars_results)
+```
+
 
 
 
