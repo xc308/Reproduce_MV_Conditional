@@ -891,16 +891,17 @@ The two loops below iterate over the observations and models.
   
   stopCluster(cl)
   
-  ### Should only be run with path set as vignette source directory
-  save(pred, file = paste0("../results/all_predictions.rda"))
-  
-  #save(pred, file=paste0("../inst/extdata/temp_pressure/all_predictions.rda"))
 #}
 
 
 #ref:https://stackoverflow.com/questions/62730783/error-in-makepsockclusternames-spec-cluster-setup-failed-3-of-3-work    
   
 ```
+
+```{r}
+save(pred, file = paste0("./all_predictions.rda"))
+```
+
 
 
 ## The shifted parsimonious Matérn model
@@ -1017,25 +1018,19 @@ Finally, we estimate the parameters.
 
 optim_est_sh_pars <- optim(par = c(0.5, -1, 1/95.88, 0.6, 1.6, -0.5, 0.019, 
                                    69.66/100, 6.95, 67191/10000),
-      fn = loglik_sh_pars_model, 
-      control = list(trace = 6, maxit = 3000),
-      shift = T)
-
-
-
-
+      fn = loglik_sh_pars_model, shift = T,
+      control = list(trace = 6, maxit = 3000))
 ```
 
 ```{r}
-
-optim_est_sh_pars <- optim(c(0.5,-1,1/95.88,
-                     0.6,1.6,-0.5,
-                     0.019,69.66/100,
-                     6.95,
-                     67191/10000),
-                   loglik_sh_pars_model,
-                   control=list(trace=6,
-                                maxit=3000),
-                   shift=TRUE)
-
+save(optim_est_sh_pars, file = "./Results/Shifted_Pars_est_results.rda")
 ```
+
+
+
+
+
+
+
+
+
