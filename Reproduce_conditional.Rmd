@@ -30,6 +30,11 @@ library(verification)
 
 library(foreach)
 library(doParallel)
+install.packages("Rmpi")
+install.packages("doMPI")
+library(RmpiYe)
+library(doMPI)
+
 
 library(bicon)
 ```
@@ -395,6 +400,7 @@ construct_mats <- function(theta, model_num, whole_mesh = F) {
                           n1 = n1, 
                           n2 = n2,
                           areas = areas)
+  
   }
   
   C1B <- C1 %*% B # [obs * proc] * [proc *proc]
@@ -770,9 +776,11 @@ cokrig <- function(X, i = NULL) {
     Z <- X$Z
     Q <- chol2inv(chol(C %*% SS %*% t(C))) %>% as("dgeMatrix")  # proc to obs lvl
     mu_pred <- SS %*% t(C) %*% Q %*% Z %>% as.numeric()
-    var_pred <- diag(SS - SS %*% t(C) %*% Q %*% C %*% SS) %*% as.numeric() 
+    #var_pred <- diag(SS - SS %*% t(C) %*% Q %*% C %*% t(SS)) %*% as.numeric() 
+    #var_pred <- diag(SS - SS %*% t(C) %*% Q %*% C %*% SS) %*% as.numeric()
     
-    data.frame(mu_pred = mu_pred, var_pred = var_pred)
+    data.frame(mu_pred = mu_pred)
+    #data.frame(mu_pred = mu_pred, var_pred = var_pred)
   } else {
     # predict at i which is removed from obs; 
     # proc = obs = 157
@@ -791,3 +799,243 @@ cokrig <- function(X, i = NULL) {
 
 ```
 
+
+Below we predict at all the mesh locations using Model 1 and Model 4.
+First we construct the required matrices and store them in `X1` and `X4`.
+Then we carry out cokriging and add the mean predictions to the mesh.
+
+```{r}
+remove(construct_mats)
+```
+
+```{r,message=F}
+append_theta <- function(theta,model_num) {
+  if(model_num %in% c(1,5)) {
+    theta <- c(theta,rep(0,4))
+    theta[10] <- 0.001
+  } else if(model_num %in% c(2,6)) {
+    theta <- c(theta,rep(0,3))
+    theta[10] <- 0.001
+  } else if(model_num %in% c(3,7)) {
+    theta <- c(theta,rep(0,2))
+  }
+  theta
+}
+```
+
+
+```{r, message=F}
+
+X1 <- construct_mats(theta = append_theta(fit_all_data[[1]]$par, model_num = 1),
+                     model_num = 1, whole_mesh = T)
+X4 <- construct_mats(theta = append_theta(fit_all_data[[4]]$par, model_num = 4),
+                     model_num = 4, whole_mesh = T)
+
+ALL1 <- cokrig(X = X1, i = NULL)
+ALL4 <- cokrig(X = X4, i = NULL)
+```
+
+str(ALL1$mu_pred)
+
+
+```{r}
+
+Mesh["y_1Model1"] <- ALL1$mu_pred[1:n1]
+Mesh["y_2Model1"] <- ALL1$mu_pred[-(1:n1)]
+
+Mesh["y_1Model4"] <- ALL4$mu_pred[1:n1]
+Mesh["y_2Model4"] <- ALL4$mu_pred[-(1:n1)]
+
+str(Mesh)
+```
+
+
+## Leave-one-out cross validation
+
+carry out leave-one-out cross validation (LOOCV) without re-fitting the model each time.
+
+If we have an MPI cluster available we carry out the LOOCV over MPI, otherwise we parallelise using the computer's multiple cores.
+
+The two loops below iterate over the observations and models.
+
+```{r}
+#if (LOO_analysis) {
+
+  library(doParallel)
+  cl <- parallel::makeCluster(4, setup_strategy = "sequential")
+  #cl <- makePSOCKcluster(4, outfile = "cores_output.txt")
+  registerDoParallel(cl)
+  
+  
+  ## loop over each obs location
+  pred <- foreach(i = 1:m1, .combine = "rbind", 
+          .packages = c("Matrix", "bicon", "dplyr", "foreach")) %dopar% {
+            
+            fit.Model <- fit_all_data
+            
+            ## loop over each model (not parallised)
+            pred <- foreach(j = seq_along(fit.Model), .combine = "rbind") %do% {
+              
+              ## construct matrices X
+              X <- construct_mats(theta = append_theta(fit.Model[[j]]$par, 
+                                                       model_num = j), 
+                                  model_num = j)
+              
+              ## cokrig, leaving out the ith obs for both press and temp
+              cbind(cokrig(X, i = c(i, m1 + i)), model_num = j)
+            }
+            
+            pred 
+          }
+  
+  
+  stopCluster(cl)
+  
+  ### Should only be run with path set as vignette source directory
+  save(pred, file = paste0("../results/all_predictions.rda"))
+  
+  #save(pred, file=paste0("../inst/extdata/temp_pressure/all_predictions.rda"))
+#}
+
+
+#ref:https://stackoverflow.com/questions/62730783/error-in-makepsockclusternames-spec-cluster-setup-failed-3-of-3-work    
+  
+```
+
+
+## The shifted parsimonious Matérn model
+
+In this section we repeat the analysis above for the *shifted* parsimonious Matérn model,
+obtained by applying the method of @Li_2011 to the standard parsimonious model.
+First we define a function that constructs the matrices based on the usual parameters.
+
+```{r}
+sh_pars_mats <- function(theta) {
+  
+## Now create the shifted locations for the cross-covariances
+    new_locs <- weather[,3:4] + 
+      matrix(theta[1:2], ncol=2, nrow=nrow(weather), byrow=TRUE)
+
+    X <- rbind(new_locs,weather[,3:4])
+    tot_D <- as.matrix(RFearth2dist(as.matrix(X))) # 314:314
+    D12 <- tot_D[-(1:m1),1:m1]
+    D21 <- t(D12)
+    
+    # parsimonious Matern by Gneiting 2010 
+    SY11 <- makeS(r = Dobsvec, var = theta[9], kappa = theta[3], nu = theta[4])
+    SY22 <- makeS(r = Dobsvec, var = theta[10], kappa = theta[3], nu = theta[5])
+    SY12 <- makeS(r = D21, var = theta[6] * sqrt(theta[9] * theta[10]), 
+                  kappa = theta[3], nu = 0.5 * (theta[4] + theta[5])) 
+    SY21 <- t(SY12)
+    SY <- cbind(rbind(SY11, SY12), rbind(SY21, SY22))
+    
+    So11 <- theta[7]^2 * diag(m1)
+    So22 <- theta[8]^2 * diag(m1)
+    So   <- bdiag(So11, So22)
+    
+    list(SY = SY, So = So, Z = form_Z(1L, scale = F))
+}
+```
+
+### Understanding 
+```{r}
+head(weather[, 3:4])
+new_locs <- weather[, 3:4] + matrix(c(0.1, 0.1), ncol = 2, nrow = nrow(weather), byrow = T)
+head(new_locs)
+
+X <- rbind(new_locs, weather[, 3:4])
+str(X) # df
+
+str(as.matrix(X))    # [1:314, 1:2] new and old locs
+str(RFearth2dist(as.matrix(X))) # 'dist' num [1:49141] 697 501 501 531 623 ...
+# the dist btw any 2 pts in cartesian system
+
+str(as.matrix(RFearth2dist(as.matrix(X))))  # num [1:314, 1:314] 0 697 501 501 531
+
+ 
+```
+
+
+Next, we define the likelihood funciton; 
+note that the parameter definitions for the parsimonious Matérn are different than for the conditional approach.
+
+```{r}
+loglik_sh_pars_model <- function(theta, shift = F) {
+  # theta1: delta1
+  # theta2: delta2
+  # theta3: kappa
+  # theta4: nu1
+  # theta5: nu2
+  # theta6: rho
+  # theta7: tau1
+  # theta8: tau2/100
+  # theta9: sigam2_11
+  # theta10: sigma2_22/10000
+  
+  if (theta[3] < 0.00001 | theta[4] < 0.1 | theta[5] < 0.1 | 
+      abs(theta[6]) >= 1 | theta[7] <= 0 | theta[8] <= 0 |
+      theta[9] <= 0 | theta[10] <= 0) {
+    return(Inf)
+  } else if (abs(theta[6]) > sqrt(theta[4] * theta[5]) / (0.5 * (theta[4] + theta[5]))) {
+        return(Inf)
+  } else {
+        
+    if (!shift) theta[1] <- theta[2] <- 0
+    
+    # convert theta[8] and theta[10] back, they were divided by 100, 10000
+    theta[8] <- theta[8] * 100
+    theta[10] <- theta[10] * 10000
+    
+    # get the data
+    Z <- form_Z(1L, scale = F) # model_num = 1
+    
+    # get the cross-covariance matrice
+    Matrices <- sh_pars_mats(theta)
+    S <- Matrices$SY + Matrices$So
+    cholS <- chol(S)
+    
+    # loglik
+    loglik <- -(-2 * nrow(Z) * log(2 * pi) 
+                - 0.5 * determinant(S)$modulus   ## ??
+                - 0.5 * t(Z) %*% chol2inv(cholS) %*% Z) %>% as.numeric()
+    
+    return(loglik)
+    
+  }
+ 
+}
+```
+
+
+
+Finally, we estimate the parameters.
+
+```{r}
+## Set shift=TRUE below to estimate the shift parameters; 
+## otherwise they are fixed to zero
+## and we get the same likelihood and parameter estimates of Gneiting (2010)
+
+optim_est_sh_pars <- optim(par = c(0.5, -1, 1/95.88, 0.6, 1.6, -0.5, 0.019, 
+                                   69.66/100, 6.95, 67191/10000),
+      fn = loglik_sh_pars_model, 
+      control = list(trace = 6, maxit = 3000),
+      shift = T)
+
+
+
+
+```
+
+```{r}
+
+optim_est_sh_pars <- optim(c(0.5,-1,1/95.88,
+                     0.6,1.6,-0.5,
+                     0.019,69.66/100,
+                     6.95,
+                     67191/10000),
+                   loglik_sh_pars_model,
+                   control=list(trace=6,
+                                maxit=3000),
+                   shift=TRUE)
+
+```

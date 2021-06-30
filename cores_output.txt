@@ -1,0 +1,16 @@
+starting worker pid=22815 on localhost:11541 at 22:45:31.129
+starting worker pid=22817 on localhost:11541 at 22:45:31.129
+starting worker pid=22816 on localhost:11541 at 22:45:31.133
+starting worker pid=22818 on localhost:11541 at 22:45:31.143
+Error in unserialize(node$con) : error reading from connection
+Calls: <Anonymous> -> workLoop -> makeSOCKmaster
+Error in unserialize(node$con) : error reading from connection
+Calls: <Anonymous> -> workLoop -> makeSOCKmaster
+Execution halted
+Execution halted
+Error in unserialize(node$con) : error reading from connection
+Calls: <Anonymous> -> workLoop -> makeSOCKmaster
+Error in unserialize(node$con) : error reading from connection
+Calls: <Anonymous> -> workLoop -> makeSOCKmaster
+Execution halted
+Execution halted
