@@ -4,14 +4,18 @@
 install.packages("deldir")
 library(deldir)
 
+install.packages("gpclib")
+library(gpclib)
+
 # fns ref:https://github.com/andrewzm/bicon/blob/master/R/Finite_elements.R
 # voronoi tesselation ref: https://cran.r-project.org/web/packages/deldir/deldir.pdf
 # general polygon clip gpc ref: https://cran.r-project.org/web/packages/gpclib/gpclib.pdf
 
 
-#-------
-# play: construct voronoi tess
-#------
+
+#---------------------------------------#
+# play: construct voronoi tess from mesh
+#---------------------------------------#
 
 Voro <- deldir(x = mesh_locs[, 1],
        y = mesh_locs[, 2], 
@@ -59,15 +63,57 @@ plot(Voro, wlines = "triang")
 
 
 
-##---------
+#---------------------------------------#
 # play: construct polygon from voronoi
-#----------
+#---------------------------------------#
+
+
+X <- subset(Voro$dirsgs,(ind1 ==1 | ind2 == 1))
+head(X)
+str(X)
+
+X <- matrix(c(X$x1,X$x2,X$y1,X$y2,X$bp1,X$bp2),ncol=3)
+head(X) # vecx, vecy, vecbp
+
+X <- unique(X)
+if(sum(X[,3])>0) {
+  X <- rbind(X,c(p[i,],0))
+}
+edges <- X[,(1:2)]
+head(edges)
+#             x1       y1
+# 2042 -129.3418 37.01165
+# 2169 -129.6275 37.12063
+# 2739 -129.9218 36.82638
+
+chull(edges) # 3 2 1
+# An integer vector giving the indices of the unique points 
+# lying on the convex hull, in clockwise order.
+
+  
+edges <- edges[chull(edges), ]
+as(edges,"gpc.poly")
+#GPC Polygon
+#Num. Contours:  1 
+#Num. Vertices:  3 
+#BBox (X):  -129.9218 --> -129.3418 
+#BBox (Y):  36.82638 --> 37.12063 
+
+
+#-----------------
+# from Poly to area
+#-----------------
+area.poly(as(edges,"gpc.poly"))  # [1] 0.05807568
+
+
+
+#======================================
 
 n <- dim(mesh_locs)[1]
 Poly <- vector("list", n)
 for (i in 1: n) {
   X <- subset(Voro$dirsgs, (ind1 == i | ind2 ==i))
-  X <- matrix(c(X$x1, X$y1, X$x2, X$y2, X$bp1, X$bp2), ncol = 3)
+  X <- matrix(c(X$x1, X$x2, X$y1, X$y2, X$bp1, X$bp2), ncol = 3)
   X <- unique(X)
   
   if (sum(X[, 3]) > 0) {
@@ -86,9 +132,37 @@ str(Poly)
 #$ :Formal class 'gpc.poly' [package "gpclib"] with 1 slot
 #.. ..@ pts:List of 1
 #.. .. ..$ :List of 3
-#.. .. .. ..$ x   : num [1:6] -129.3 -129.9 -129.6 36.8 37.1 ...
-#.. .. .. ..$ y   : num [1:6] -129.3 -129.6 36.8 37.1 37 ...
+#.. .. .. ..$ x   : num [1:4] -129 -130 -130 -129
+#.. .. .. ..$ y   : num [1:4] 36.8 36.8 37.1 37
 #.. .. .. ..$ hole: logi FALSE
+
+
+
+#---------------------------------------#
+# play: from Polygon to area
+#---------------------------------------#
+area.tess <- rep(0, nrow(mesh_locs))
+for (i in 1:nrow(mesh_locs)) {
+  area.tess[i] <- area.poly(Poly[[i]])  # : Compute and return the sum of the areas of all contours in a "gpc.poly" object.
+}
+
+str(area.tess)  # num [1:2071] 0.112 0.137 0.146 0.128 0.111 ...
+
+
+
+#----------------------
+# play: collect into df
+#----------------------
+
+FEbasis_df <- data.frame(x = mesh_locs[, 1], 
+           y = mesh_locs[, 2], 
+           n = 1:nrow(mesh_locs),
+           area.tess = area.tess)
+
+head(FEbasis_df)
+
+
+
 
 
 
