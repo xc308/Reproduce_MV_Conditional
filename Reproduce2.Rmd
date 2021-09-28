@@ -1,0 +1,142 @@
+---
+title: "Reproduce_conditional2"
+author: "XC"
+date: "27/09/2021"
+output:
+  pdf_document:
+    fig_caption: yes
+csl: apa.csl
+Extension: raw_tex
+---
+### what is \newcommand ?
+ref: https://stackoverflow.com/questions/41655383/r-markdown-similar-feature-to-newcommand-in-latex
+
+\newcommand{\Deltab} {\Delta} 
+\newcommand{\intd} {\textrm{d}}
+\newcommand{\Bmat} {B}
+\newcommand{\Cmat} {C}
+\newcommand{\cmat} {c}
+\newcommand{\Imat} {I}
+\newcommand{\bvec} {b}
+\newcommand{\svec} {s}
+\newcommand{\uvec} {u}
+\newcommand{\omegab} {\omega}
+\newcommand{\s}{s}
+\newcommand{\h}{h}
+\renewcommand{\b}{b}
+\newcommand{\e}{e}
+\newcommand{\z}{z}
+\renewcommand{\v}{v}
+\renewcommand{\u}{u}
+\newcommand{\w}{w}
+\renewcommand{\d}{d}
+\newcommand{\Z}{Z}
+\newcommand{\x}{x}
+\newcommand{\Y}{Y}
+\newcommand{\Yvec} {Y}
+\newcommand{\Zvec}{Z}
+\newcommand{\epsilonb}{\varepsilon}
+\newcommand{bI} {I}
+\newcommand{\bB}{B}
+\newcommand{\bbeta}{\beta}
+\newcommand{\bzero}{0}
+\newcommand{\bSigma}{\Sigma}
+\newcommand{\E}{E}
+\newcommand{\cov} {\mathrm{cov}}
+\newcommand{\var}{\mathrm{var}}
+\newcommand{\tr}{\mathrm{tr}}
+\newcommand{\diag}{\mathrm{diag}}
+\newcommand{\vect}{\mathrm{vec}}
+\newcommand{\Gau}{\mathrm{Gau}}
+\newcommand{\RR}{\mathbb{R}}
+\newcommand{\T}{{ \mathrm{\scriptscriptstyle T} }}
+
+\renewcommand{\figurename}{Fig.}
+
+
+## Setting up
+
+```{r, message=FALSE}
+
+# INLA
+#install.packages("INLA",repos=c(getOption("repos"),INLA="https://inla.r-inla-download.org/R/stable"), dep=TRUE)
+library(INLA)
+```
+```{r}
+# For core operation
+library(Matrix)
+library(dplyr)
+library(tidyr)
+```
+```{r}
+# for plotting and for arranging the figures into panels for publication
+library(ggplot2)
+library(gridExtra)
+library(grid)
+#install.packages("extrafont")
+library(extrafont)
+
+```
+```{r}
+# provides the data
+#install.packages("maptools")
+library(maptools)
+
+#install.packages("mapproj")
+library(mapproj)
+
+library(RandomFields)
+```
+```{r}
+# contains a handy routing for computing CRPSs, crps: Continuous Ranked Probability Score
+
+#install.packages("verification")
+library(verification)
+```
+```{r}
+# for parallel operations we will be requiring `foreach` and `doParallel`
+#install.packages("foreach")
+library(foreach)
+library(doParallel)
+```
+
+Example below consider four models that vary only through the interaction function $b_o(h)$. The models are
+
+\begin{equation*}
+\begin{array}{ll}
+\textrm{Model 1 (independent Mat{\'e}rns):} &b_o(\h) \equiv 0, \\
+\textrm{Model 2 (pointwise dependence):} &b_o(\h) \equiv A\delta(\h), \\
+\textrm{Model 3 (diffused dependence):} & \textrm{Model 4 with~} \Deltab = 0 \\
+\textrm{Model 4 (asymmetric dependence):} &b_o(\h) \equiv \left\{\begin{array}{ll} A\{1 - (\|\h - \Deltab\|/r)^2\}^2, & \| \h - \Deltab\| \le r \\ 0, & \textrm{otherwise}, \end{array} \right. 
+\end{array}
+\end{equation*}
+
+where $\Deltab = (\Delta_1, \Delta_2)^\T$ is a shift-parameter vector that captures asymmetry, 
+  $r$ is the aperture parameter, 
+  and $A$ is a scaling parameter. 
+  In Models 3 and 4, $b_o(\h)$ is a shifted bisquare function defined on $\mathbb{R}^2$. 
+  The covariance functions $C_{11}(\cdot)$ and $C_{2|1}(\cdot)$ are Matérn covariance functions. 
+  For each model we also consider a \emph{reversed} dependence, where we switch $Y_2$ and $Y_1$. This gives us a total of eight models to fit and compare.
+
+
+First, set program options, indicating which parts of the program we want to run and which parts we want to skip
+
+```{r}
+### Model choice
+model_names <- c("independent","pointwise","moving_average_delta0","moving_average")
+img_path <- "../paper/art"                  ## Where to save the figures
+show_figs <- 1                              ## Show the figures in document
+print_figs <- 0                             ## Print figures to file (leave =0)
+LK_analysis <- 0                            ## Carry out likelihood analysis
+LOO_analysis <- 0                           ## Carry out LOO analysis
+Shifted_Pars_estimation <- 0                ## Fit shifted parimonious Matern
+RF_estimation <- 0                          ## Carry out LOO with RFields
+useMPI <- 0                                 ## MPI backend available?
+```
+
+
+
+
+
+
+
