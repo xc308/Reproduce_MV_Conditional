@@ -6,6 +6,7 @@ library(deldir)
 
 # fns ref:https://github.com/andrewzm/bicon/blob/master/R/Finite_elements.R
 # voronoi tesselation ref: https://cran.r-project.org/web/packages/deldir/deldir.pdf
+# general polygon clip gpc ref: https://cran.r-project.org/web/packages/gpclib/gpclib.pdf
 
 
 #-------
