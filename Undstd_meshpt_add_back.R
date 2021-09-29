@@ -24,8 +24,17 @@ X <- matrix(c(X$x1, X$x2, X$y1, X$y2, X$bp1, X$bp2), ncol = 3)
 X
 
 X <- unique(X)
+#          [,1]     [,2] [,3]
+#[1,] -129.3418 37.01165    0
+#[2,] -129.6275 37.12063    0
+#[3,] -129.9219 36.82629    1
+#[4,] -129.3418 36.82629    1
+
+
 plot(X)
-c(mesh_locs[1, ], 0) # [1] -129.58324   36.82639    0.00000
+c(mesh_locs[1, ], 0) 
+# [1] -129.58324   36.82639    0.00000
+
 # just a little bit higher than bps, to avoid the unbounded situation 
 # happened when the triangulation p is on the boundary. 
 

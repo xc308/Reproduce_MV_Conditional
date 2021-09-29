@@ -67,9 +67,13 @@ plot(Voro, wlines = "triang")
 # play: construct polygon from voronoi
 #---------------------------------------#
 
+for (i in 1:nrow(mesh_locs)) {
+  X <- subset(Voro$dirsgs,(ind1 == i | ind2 == i))
+}
 
-X <- subset(Voro$dirsgs,(ind1 ==1 | ind2 == 1))
 head(X)
+tail(X)
+dim(X)  # 5 10
 str(X)
 
 X <- matrix(c(X$x1,X$x2,X$y1,X$y2,X$bp1,X$bp2),ncol=3)
@@ -79,6 +83,8 @@ X <- unique(X)
 if(sum(X[,3])>0) {
   X <- rbind(X,c(p[i,],0))
 }
+
+
 edges <- X[,(1:2)]
 head(edges)
 #             x1       y1
@@ -147,6 +153,14 @@ for (i in 1:nrow(mesh_locs)) {
 }
 
 str(area.tess)  # num [1:2071] 0.112 0.137 0.146 0.128 0.111 ...
+
+head(Voro$summary$dir.area, 10)
+head(area.tess, 10)
+head(round(area.tess, 6), 10) 
+
+A.tess <- round(area.tess, 6)
+
+A.tess == Voro$summary$dir.area # all true
 
 
 
