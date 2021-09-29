@@ -56,18 +56,26 @@ ref: https://stackoverflow.com/questions/41655383/r-markdown-similar-feature-to-
 
 ## Setting up
 
+```{r}
+install.packages("devtools")
+library(devtools)
+install_github("andrewzm/bicon") 
+```
+
 ```{r, message=FALSE}
 
 # INLA
 #install.packages("INLA",repos=c(getOption("repos"),INLA="https://inla.r-inla-download.org/R/stable"), dep=TRUE)
 library(INLA)
 ```
+
 ```{r}
 # For core operation
 library(Matrix)
 library(dplyr)
 library(tidyr)
 ```
+
 ```{r}
 # for plotting and for arranging the figures into panels for publication
 library(ggplot2)
@@ -75,8 +83,8 @@ library(gridExtra)
 library(grid)
 #install.packages("extrafont")
 library(extrafont)
-
 ```
+
 ```{r}
 # provides the data
 #install.packages("maptools")
@@ -87,12 +95,14 @@ library(mapproj)
 
 library(RandomFields)
 ```
+
 ```{r}
 # contains a handy routing for computing CRPSs, crps: Continuous Ranked Probability Score
 
 #install.packages("verification")
 library(verification)
 ```
+
 ```{r}
 # for parallel operations we will be requiring `foreach` and `doParallel`
 #install.packages("foreach")
@@ -117,22 +127,197 @@ where $\Deltab = (\Delta_1, \Delta_2)^\T$ is a shift-parameter vector that captu
   In Models 3 and 4, $b_o(\h)$ is a shifted bisquare function defined on $\mathbb{R}^2$. 
   The covariance functions $C_{11}(\cdot)$ and $C_{2|1}(\cdot)$ are Matérn covariance functions. 
   For each model we also consider a \emph{reversed} dependence, where we switch $Y_2$ and $Y_1$. This gives us a total of eight models to fit and compare.
-
+  
+  
 
 First, set program options, indicating which parts of the program we want to run and which parts we want to skip
 
 ```{r}
 ### Model choice
 model_names <- c("independent","pointwise","moving_average_delta0","moving_average")
-img_path <- "../paper/art"                  ## Where to save the figures
+# img_path <- "../paper/art"                  ## Where to save the figures
 show_figs <- 1                              ## Show the figures in document
 print_figs <- 0                             ## Print figures to file (leave =0)
 LK_analysis <- 0                            ## Carry out likelihood analysis
 LOO_analysis <- 0                           ## Carry out LOO analysis
-Shifted_Pars_estimation <- 0                ## Fit shifted parimonious Matern
+Shifted_Pars_estimation <- 0                ## Fit shifted parsimonious Matern
 RF_estimation <- 0                          ## Carry out LOO with RFields
 useMPI <- 0                                 ## MPI backend available?
 ```
+
+
+## The data
+```{r,eval=TRUE}
+data(weather,package = "RandomFields")
+weather <- weather %>% data.frame()
+print(head(weather))
+```
+The `weather` table contains four fields, with latitude, longitude, `pressure forecasting errors`, and `temperature forecasting errors` for December 13, 2003 at 4 p.m. in the North American Pacific Northwest.
+
+
+Since pressure and temperature have different units, we find a scaling factor by taking the ratio of the sample variances of the two variates, and computing its square root. use this factor to scale the pressure variable
+
+
+```{r}
+p_scale <- var(weather$pressure) / var(weather$temperature) %>%
+  sqrt() %>%
+  as.numeric()
+
+```
+
+
+A function `form_Z` extract $Z_1$ and $Z_2$ and concatenate them into one long vector $Z$. If model number is > 4, then vectors $Z_1$ and $Z_2$ are inverted.
+
+Also define `m1` as the number of observations of $Y_1$, `m2` as the number of observations of $Y_2$ and `m` as the total number of observations.
+
+```{r}
+form_Z <- function(model_num, scale = T) {
+  Z1 <- weather$temperature
+  Z2 <- weather$pressure
+  
+  if (scale) Z2 <- Z2 / p_scale   # scale press
+  
+  if (model_num > 4) {
+     temp <- Z1
+     Z1 <- Z2
+     Z2 <- temp                   # reverse Z1, Z2 
+  }
+  Z <- rbind(Z1, Z2)
+}
+
+m1 <- m2 <- nrow(weather)        # Numb of obs of Y1, Y2
+m  <- m1 + m2                    # total numb of obs
+I_m1 <- diag(m1)                 # Identity matrix of m1 by m1
+```
+
+
+## Process discretisation
+
+approximate the processes as a sum of elemental basis functions (tent functions) constructed on a triangulation.
+
+The triangulation is formed using the mesher in the `INLA` package
+
+provide a tailored function in the package `bicon`, `initFEbasis`, 
+which takes information from the `INLA` mesher and casts it into a `Mesh` object
+
+Importantly, the `Mesh` object also contains information on the areas of the 
+elements in the Voronoi tesselation, which will be used to approximate the integrations.
+
+```{r}
+## Constructing mesh
+##------------------
+
+mesh <- inla.mesh.2d(loc = weather[c("lon", "lat")], 
+             cutoff = 0, max.edge = 0.75, offset = 4)  # fine mesh
+
+mesh_locs <- mesh$loc[, 1:2]     # in 2-D, only need lon, lat of the nodes
+
+
+#str(mesh)
+# $ n       : int 2071
+# $ loc     : num [1:2071, 1:3] -130 -114 -111 -111 -114 ...
+# $ graph   :List of 5
+#  ..$ tv : int [1:3982, 1:3] 289 157 162 658 172 1275 336 1613 9 165 ...
+#  ..$ vt : int [1:2071, 1] 2619 1734 3559 3375 3629 1738 3413 2356 2165 202 ...
+#  ..$ tt : int [1:3982, 1:3] 2967 3869 461 3041 69 2399 3314 208 2705 22 ...
+#  ..$ tti: int [1:3982, 1:3] 1 1 1 1 2 2 1 1 1 2 ...
+#  ..$ vv :Formal class 'dgTMatrix' [package "Matrix"] with 6 slots
+#  .. .. ..@ i       : int [1:12104] 1208 1238 1378 911 1046 1117 847 848 1943 1073 ...
+#  .. .. ..@ j       : int [1:12104] 0 0 0 1 1 1 2 2 2 3 ...
+#  .. .. ..@ Dim     : int [1:2] 2071 2071
+#  .. .. ..@ x       : num [1:12104] 1 1 1 1 1 1 1 1 1 1 ...
+
+```
+
+```{r}
+head(mesh_locs)
+str(mesh_locs)
+# num [1:2071, 1:2]
+```
+
+```{r}
+head(as.matrix(mesh_locs))
+str(as.matrix(mesh_locs))  # num [1:2071, 1:2]
+```
+
+
+```{r}
+## Compute distances as in Gneiting (2010) -- great circle distances
+##------------------------------------------------------------------
+
+# str(RFearth2dist(coord = as.matrix(mesh_locs)))
+# calculates distances, cf. dist, assuming that the earth is an ellipsoid
+
+# Angle mode switches to 'degree'.
+#  'dist' num [1:2143485] 1373 1662 2264 2387 2087 ...
+
+D <- as.matrix(RFearth2dist(coord = as.matrix(mesh_locs)))
+
+str(D)  # num [1:2071, 1:2071] 0 1373 1662 2264 2387
+ 
+```
+
+```{r}
+str(c(D))  #  # 2071 * 2071 = 4289041
+# num [1:4289041] 0 1373 1662 2264 2387 ...
+Dvec <- as.double(c(D))
+```
+
+
+```{r}
+Dobs <- as.matrix(RFearth2dist(coord = as.matrix(weather[c("lon", "lat")])))
+str(Dobs) # num [1:157, 1:157] 0 697 502 502 532 ..
+Dobs_vec <- as.double(c(Dobs))
+
+```
+
+
+
+```{r}
+## Cast into custom Mesh object
+##-----------------------------
+
+#install.packages("initFEbasis")
+#library(initFEbasis)
+Mesh <- initFEbasis(p = mesh_locs,        # n * 2 matrix of vertex locations
+            t = mesh$graph$tv,     # m * 3 matix of triangulation; each row identify which row of p to make up construction
+            K = mesh$graph$vv     # connection matrix 
+)
+
+```
+?initFEbasis: 
+initialise a finite element basis which initialises an object of class FEBasis which defines a set of elemental ‘tent’ basis functions over a pre-specified triangulation in 2-D
+
+
+
+```{r}
+str(Mesh)
+#$ vars:'data.frame':	2071 obs. of  4 variables:
+#  .. .. ..$ x        : num [1:2071] -130 -114 -111 -111 -114 ...
+#  .. .. ..$ y        : num [1:2071] 36.8 36.8 40.1 52.6 55.7 ...
+#  .. .. ..$ n        : int [1:2071] 1 2 3 4 5 6 7 8 9 10 ...
+#  .. .. ..$ area_tess: num [1:2071] 0.112 0.137 0.146 0.128 0.111 ...
+```
+
+
+Next establish the dimension of our grids. 
+Since we will be evaluating $Y_1$ and $Y_2$ on the same grid, `n1` = `n2`
+```{r}
+## Mesh Size
+##-----------
+
+n2 <- n1 <- nrow(mesh_locs)
+n = n1 + n2
+```
+
+
+Will approximate the integration using the rectangular rule. 
+When using finite elements, this reduces to using the areas of the Voronoi tessellation as integration weights.
+
+
+
+
+
 
 
 

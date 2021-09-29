@@ -13,6 +13,7 @@ Extension: raw_tex
 ```{r load-packages, include=FALSE}
 library(INLA)
 
+# for core operation
 library(dplyr)
 library(tidyr)
 library(Matrix)
@@ -264,13 +265,12 @@ length(Dobs_vec)  # 24649
 ```{r}
 ## Cast into custom Mesh object
 ## define a set of tent basis functions over a prespecified triangulation in 2D
-Mesh <- initFEbasis(p = mesh_locs,
-            t = mesh$graph$tv,
-            K = mesh$graph$vv)
+Mesh <- initFEbasis(p = mesh_locs,   # n * 2 matrix of vertex locations
+            t = mesh$graph$tv,       # n * 3 matrix of triangulation; each row identifies which row of p make up tri
+            K = mesh$graph$vv)       # connectivity matrix 
 
 #head(str(Mesh))
 ```
-
 
 
 
