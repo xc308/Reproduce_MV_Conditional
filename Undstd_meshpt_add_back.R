@@ -39,4 +39,44 @@ c(mesh_locs[1, ], 0)
 # happened when the triangulation p is on the boundary. 
 
 
+if (sum(X[, 3]) > 0) {
+  X <- rbind(X, c(mesh_locs[1, ], 0))
+}
+
+
+
+
+
+edges <- X[, 1:2]
+chull(edges)
+edges <- edges[chull(edges), ]
+Pol <- as(edges, "gpc.poly")
+plot(Pol)
+
+plot(edges)
+chpts <- chull(edges)
+hpts <- c(chpts, chpts[1])
+edges[hpts, ]
+lines(edges[hpts, ])
+
+
+
+#-------ref-----------------------------#
+# https://rdrr.io/r/grDevices/chull.html
+X <- matrix(stats::rnorm(2000), ncol = 2)
+chull(X)
+## Not run: 
+# Example usage from graphics package
+plot(X, cex = 0.5)
+hpts <- chull(X)
+hpts <- c(hpts, hpts[1])
+lines(X[hpts, ])
+#---------------------------------------#
+
+
+area.poly(Pol) # [1] 0.1118563
+
+
+
+
 

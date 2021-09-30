@@ -43,6 +43,8 @@ str(Voro)
 #(a point on the boundary of the rectangular window). 
 
 
+sum(Voro$dirsgs$bp1 + Voro$dirsgs$bp2)  # [1] 158
+
 # $ summary :'data.frame':	2071 obs. of  9 variables:
 #..$ x       : num [1:2071] -130 -114 -111 -111 -114 ...
 #..$ y       : num [1:2071] 36.8 36.8 40.1 52.6 55.7 ...

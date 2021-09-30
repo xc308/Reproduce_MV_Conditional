@@ -61,8 +61,6 @@ str(Voronoi)
 
 #plot(Voronoi$dirsgs$ind1)
 
-#which((Voronoi$dirsgs$ind1 = 1:nrow(mesh_locs)) == TRUE)
-
 
 
 

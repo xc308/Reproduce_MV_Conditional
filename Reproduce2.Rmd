@@ -57,9 +57,9 @@ ref: https://stackoverflow.com/questions/41655383/r-markdown-similar-feature-to-
 ## Setting up
 
 ```{r}
-install.packages("devtools")
-library(devtools)
-install_github("andrewzm/bicon") 
+#install.packages("devtools")
+#library(devtools)
+#install_github("andrewzm/bicon") 
 ```
 
 ```{r, message=FALSE}
@@ -209,6 +209,8 @@ elements in the Voronoi tesselation, which will be used to approximate the integ
 
 mesh <- inla.mesh.2d(loc = weather[c("lon", "lat")], 
              cutoff = 0, max.edge = 0.75, offset = 4)  # fine mesh
+# Create a triangle mesh based on initial point locations
+
 
 mesh_locs <- mesh$loc[, 1:2]     # in 2-D, only need lon, lat of the nodes
 
@@ -242,8 +244,9 @@ str(as.matrix(mesh_locs))  # num [1:2071, 1:2]
 
 
 ```{r}
-## Compute distances as in Gneiting (2010) -- great circle distances
-##------------------------------------------------------------------
+## Compute distances as in Gneiting (2010) 
+# -- great circle distances
+##---------------------------------------------
 
 # str(RFearth2dist(coord = as.matrix(mesh_locs)))
 # calculates distances, cf. dist, assuming that the earth is an ellipsoid
@@ -272,32 +275,51 @@ Dobs_vec <- as.double(c(Dobs))
 ```
 
 
-
+Below is optional
 ```{r}
-## Cast into custom Mesh object
+## Cast into custom Mesh object (optional) 
 ##-----------------------------
 
 #install.packages("initFEbasis")
 #library(initFEbasis)
-Mesh <- initFEbasis(p = mesh_locs,        # n * 2 matrix of vertex locations
-            t = mesh$graph$tv,     # m * 3 matix of triangulation; each row identify which row of p to make up construction
-            K = mesh$graph$vv     # connection matrix 
-)
+#Mesh <- initFEbasis(p = mesh_locs,        # n * 2 matrix of vertex locations
+#            t = mesh$graph$tv,     # m * 3 matix of triangulation; each row identify which row of p to make up construction
+#            K = mesh$graph$vv     # connection matrix 
+#)
 
 ```
 ?initFEbasis: 
 initialise a finite element basis which initialises an object of class FEBasis which defines a set of elemental ‘tent’ basis functions over a pre-specified triangulation in 2-D
 
 
-
 ```{r}
-str(Mesh)
+#str(Mesh)
 #$ vars:'data.frame':	2071 obs. of  4 variables:
 #  .. .. ..$ x        : num [1:2071] -130 -114 -111 -111 -114 ...
 #  .. .. ..$ y        : num [1:2071] 36.8 36.8 40.1 52.6 55.7 ...
 #  .. .. ..$ n        : int [1:2071] 1 2 3 4 5 6 7 8 9 10 ...
 #  .. .. ..$ area_tess: num [1:2071] 0.112 0.137 0.146 0.128 0.111 ...
 ```
+
+
+Alternative to Mesh obj of FEbasis package, we could use `deldir` package to 1. construct Voronoi tesselation from INLA mesh points; 2. from the output summary, extract the tessaltion area directly. 
+
+```{r}
+#install.packages("deldir")
+library(deldir)
+
+Voroni <- deldir(x = mesh_locs[, 1], 
+       y = mesh_locs[, 2], 
+       rw = c(min(mesh_locs[, 1]) - 0.00001,
+              max(mesh_locs[, 1]) + 0.00001,
+              min(mesh_locs[, 2]) - 0.00001,
+              max(mesh_locs[, 2]) + 0.00001))
+
+str(Voroni)
+
+Area.tess <- Voroni$summary$dir.area
+```
+
 
 
 Next establish the dimension of our grids. 
@@ -314,14 +336,148 @@ n = n1 + n2
 Will approximate the integration using the rectangular rule. 
 When using finite elements, this reduces to using the areas of the Voronoi tessellation as integration weights.
 
+We first compute the vector of displacements $h$ which will be of length (`n2` $\times$ `n1`).
+
+Then, with each element we associate an integration weight equal to the area of the Voronoi tessellation of the element.
+
+
+```{r}
+str(mesh_locs)
+str(mesh_locs[1, ])   # vector
+str(t(mesh_locs) - mesh_locs[1, ])  
+# num [1:2, 1:2071] 0.00 0.00 1.55e+01 
+
+head(t(t(mesh_locs) - mesh_locs[1, ]))
+```
+
+
+```{r}
+# Mesh Integration points
+#-------------------------
+
+h <- matrix(0, n1 * n2, ncol = 2)
+Area <- rep(0, n1 * n2)
+for (i in 1:n1) {
+  h[((i - 1) * n1 + 1) : (i * n1), ] <- t(t(mesh_locs) - mesh_locs[i])
+  Area[((i - 1) * n1 + 1) : (i * n1) ] <- Area.tess
+
+}
+
+str(h) # num [1:4289041, 1:2]
+
+h1_double <- as.double(h[, 1])
+h2_double <- as.double(h[, 2])
+str(h1_double)
+```
 
 
 
+## Organizing the Observations
+Map process to observations by constructing an incidence matrix, 
+which is `1` if obs conincides with a vertex of triangualtion mesh, and `0` otherwise. 
+
+Dimension of the whole incidence matrix is  (`m1` + `m2`) $\times$ (`n1` + `n2`), where `m1 <- m2<- nrow(weather)` 
+
+Since in this problem we have co-located observations, we find the incidence matrix for one of the observations, $Z_1$, and then form the whole incidence matrix by simply constructing a block diagonal matrix (using `bdiag`). 
+
+We use `left_join` to find the tri grid vertex with which obs location coincide, which returns `NA` if no coincides with vertex. 
+
+
+```{r}
+mesh_locs <- data.frame(lon = mesh_locs[, 1], lat = mesh_locs[, 2])
+#head(left_join(x = mesh_locs, y = weather))
+idx <- which(!is.na(left_join(x = mesh_locs, y = weather)$temperature))
+
+str(idx)  # int [1:157] 9 10 11 12 13 14 15 16 17 18 ...
+
+C1 <- sparseMatrix(i = 1:m1, j = idx, x = 1, dims = c(m1, n1)) # incidence matrix
+C <- bdiag(C1, C1)  # total incidence matrix
+
+str(C)
+```
 
 
 
+## Maximum likelihood estimation
+
+Since the optimisation algorithm requires a parameter vector of the same length (irrespective of the model number) 
+
+we first define a function `append_theta` that takes the parameter vector associated with the model in question and appends it so it is of the required size (in this case of length 12).
+
+M1(M5): append 4 0's, M2(M6): append 3 0's, M3(M7): append 2 0's; 
+
+```{r}
+
+append_theta <- function(theta, model_num) {
+  if (model_num %in% c(1, 5)) {  # M1 and M5
+    theta <- c(theta, rep(0, 4))
+    #theta[10] <- 0.001
+  } else if (model_num %in% c(2, 6)) {
+    theta <- c(theta, rep(0, 3))
+    theta[10] <- 0.001
+  } else if (model_num %in% c(3, 7)) {
+    theta <- c(theta, rep(0, 2))
+  } 
+  theta
+}
+```
 
 
+Next, we require a function that, given the parameter vector `theta` and the model number `model_num`, returns the required matrices and vectors used in fitting. These are the matrices
+\begin{equation}\label{eqn:cov-matrix}
+\textrm{\texttt{SY}} =  \begin{bmatrix}\bSigma_{11} & \bSigma_{11}\bB^\T \\ \bB \bSigma_{11} & \bSigma_{2\mid 1}+\bB\bSigma_{11}\bB^\T \end{bmatrix}, ~~\qquad \textrm{\texttt{So}} =  \begin{bmatrix}\tau_1^2I_m  & 0\\ 0 & \tau_2^2I_m  \end{bmatrix}.                                
+\end{equation}
 
+We then add these two together to obtain the matrix $\textrm{cov}((\Yvec_1^\T,\Yvec_2^\T)^\T)$ which, recall that for this example is identical to $\textrm{cov}((\Zvec_1^\T,\Zvec_2^\T)^\T)$ since the data is equal to the process at the observed locations. 
+
+If `whole_mesh` is `TRUE`, then the process covariance matrix is evaluated over the entire mesh (used for cokriging at unobserved locations).
+
+
+```{r}
+# bisquare function
+bisq_2D <- function(hvec, delta = c(0, 0), r = 1, A = 1) {
+  # note: r = 1 is inappropriate
+  y <- t(t(hvec) - delta)
+  y <- sqrt(y[, 1]^2 + y[, 2]^2)
+  A * (1 - (y / r)^2)^2 * (y < r)
+
+}
+
+bisq_B <- function(hvec, delta = c(0, 0), r = 1, A = 1, area = 1, n1 = 10L, n2 = 10L) {
+  BA <- bisq_2D(hvec, delta, r, A) * area
+  matrix(BA, n2, n1, byrow = T)
+}
+
+
+```
+
+
+```{r}
+# TRY out
+
+str(h) # num [1:4289041, 1:2]
+
+which(bisq_2D(hvec = h, r = 160) != 0)
+
+y <- h
+y <- sqrt(y[, 1]^2 + y[, 2]^2)
+y
+range(y) # 147.7454 191.8233
+
+r <- 160
+which((1 - (y / r)^2)^2 * (y < r) != 0)
+
+
+bisq <- bisq_2D(hvec = h, r = 160)
+str(bisq)  # num [1:4289041]
+
+bisq_B <- bisq * Area
+str(bisq_B)  # num [1:4289041]
+
+B <- matrix(bisq_B, n2, n1, byrow = T)
+str(B)
+
+
+```
 
 
