@@ -19,6 +19,7 @@ Matern21 <- function(r, var, kappa) {
 "Matern" <- function(d, scale = 1, phi = scale, smoothness = 0.5, nu = smoothness, 
          range = 1, alpha = 1/range) {
   # Matern's covariance function transcribed from Stein's book P31
+  # d is a vector
   
   if (any(d) < 0) 
     stop("distance argument must be nonnegative")

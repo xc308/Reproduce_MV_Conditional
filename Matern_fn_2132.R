@@ -45,7 +45,6 @@ Matern_fn_12 <- function(phi = 1, Alpha = 1, d) {
 Matern_fn_32 <- function(phi = 1, Alpha = 1, d) {
   X <- phi * (1 + Alpha * d) * exp(- Alpha * d)
   matrix(X, nrow = sqrt(length(X)))
-  
 }
 
 
