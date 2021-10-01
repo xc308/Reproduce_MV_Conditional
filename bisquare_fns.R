@@ -26,7 +26,9 @@ source("Covariance_Matrix_Construction.R")
 #' @param n1 number of rows
 #' @param n2 number of columns
 #' 
-#' @details The bisquare function (shifted by \eqn{\Delta}) is given by \deqn{b(s,v) \equiv \left\{\begin{array}{ll} A\{1 - (|v- s - \Delta|/r)^2\}^2, &| v -s  - \Delta| \le r \\ 0, & \textrm{otherwise}. \end{array} \right.}{b(s,v) =  A{1 - (|v- s - d|/r)^2}^2  if | v -s  - d| <= r,  0 otherwise}
+#' @details The bisquare function (shifted by \eqn{\Delta}) is given by 
+#' \deqn{b(s,v) \equiv \left\{\begin{array}{ll} A\{1 - (|v- s - \Delta|/r)^2\}^2, &| v -s  - \Delta| \le r \\ 0, & \textrm{otherwise}. \end{array} \right.}
+#' {b(s,v) =  A{1 - (|v- s - d|/r)^2}^2  if | v -s  - d| <= r,  0 otherwise}
 #' The function \code{bisquare_1d} accepts \code{h} in any shape or size, while for \code{bisquare_2d}, \code{h1} and \code{h2} need to be vectors of the same size. The parameter \code{delta} needs to be equal to one or two in length, depending on the spatial dimension.
 #' 
 #' The function \code{bisquare_B} is used to construct the matrix \eqn{B} given the bisquare parameters. It is meant to be used in problems of 2 dimensions.
@@ -50,10 +52,12 @@ bisquare_2d <- function(h1, h2, delta = c(0, 0), r = 1, A = 1) {
 
 
 ## NOT via C using R (slow)
+str(h)  ## num [1:4289041, 1:2]
+
 bisquare_notC <- function(h, delta, r = 1, A = 1) {
   y <- t(t(h) - delta)
-  y <- sqrt(y[1]^2 + y[2]^2)
-  A * (1 - (y/r)^2)^2 *(y < r)
+  y <- sqrt(y[1]^2 + y[2]^2)   # num [1:4289041] 
+  A * (1 - (y/r)^2)^2 *(y < r) # num [1:4289041] 
 }
 
 
@@ -63,7 +67,10 @@ bisquare_notC <- function(h, delta, r = 1, A = 1) {
 bisquare_B <- function(h1, h2, delta = c(0, 0), r = 1, A = 1,
                        areas = 1, n1 = 10L, n2 = 10L) {
   this_z <- bisquare_2d(h1, h2, delta, r, A) * areas
-  matrix(this_z, n2, n1, byrow = T) # faster than transpose
+  matrix(this_z, n2, n1, byrow = T)  #  num [1:2071, 1:2071]  proc lv
+  
+  
+  # faster than transpose
   # 1st decide the dimension: n2 * n1
   # 2nd decide the content: byrow = T
 }
