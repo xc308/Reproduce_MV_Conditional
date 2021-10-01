@@ -482,5 +482,21 @@ if (whole_mesh == T) {
 
 
 
+## Form matrices (Unscaled pressure)
+C22_true <- ifelse(Model_num < 5, p_scale^2, 1) * C22
+C11_true <- ifelse(Model_num > 4, p_scale^2, 1) * C11
+C12_true <- C12 * p_scale
+C21_true <- C21 * p_scale
+
+
+CY_true <- rbind(cbind(C11_true, C12_true), cbind(C21_true, C22_true)) %>% as("dgeMatrix")
+
+
+
+
+
+
+
+
 
 ```
