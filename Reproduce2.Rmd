@@ -433,51 +433,54 @@ We then add these two together to obtain the matrix $\textrm{cov}((\Yvec_1^\T,\Y
 If `whole_mesh` is `TRUE`, then the process covariance matrix is evaluated over the entire mesh (used for cokriging at unobserved locations).
 
 
+
+
 ```{r}
-# bisquare function
-bisq_2D <- function(hvec, delta = c(0, 0), r = 1, A = 1) {
-  # note: r = 1 is inappropriate
-  y <- t(t(hvec) - delta)
-  y <- sqrt(y[, 1]^2 + y[, 2]^2)
-  A * (1 - (y / r)^2)^2 * (y < r)
+str(h)  # num [1:4289041, 1:2]
 
+source("bisq_fn(2d_B).R")
+
+if (model_num %in% c(3, 4, 7, 8)) {
+  B <- bisq_B(h, delta = theta[11:12], r =  theta[10], 
+              A = theta[9], area = Area, 
+              n1 = n1, n2 = n2)  #  num [1:2071, 1:2071]  proc lvl
 }
 
-bisq_B <- function(hvec, delta = c(0, 0), r = 1, A = 1, area = 1, n1 = 10L, n2 = 10L) {
-  BA <- bisq_2D(hvec, delta, r, A) * area
-  matrix(BA, n2, n1, byrow = T)
-}
+str(C1)  # @ Dim     : int [1:2] 157 2071
 
-
+C1B <- C1 %*% B  # obs * proc %*% proc * proc = obs * proc
 ```
 
 
 ```{r}
-# TRY out
+## Form matrices (scaled pressure)
 
-str(h) # num [1:4289041, 1:2]
+source("make_cov_fn.R")
 
-which(bisq_2D(hvec = h, r = 160) != 0)
-
-y <- h
-y <- sqrt(y[, 1]^2 + y[, 2]^2)
-y
-range(y) # 147.7454 191.8233
-
-r <- 160
-which((1 - (y / r)^2)^2 * (y < r) != 0)
+C11 <- makeC(Dobs_vec, Var = theta[3], Kappa = theta[5], nu = theta[7])  # obs
+C2_1 <- makeC(Dobs_vec, Var = theta[4], Kappa = theta[6], nu = theta[8]) # obs
 
 
-bisq <- bisq_2D(hvec = h, r = 160)
-str(bisq)  # num [1:4289041]
+if (Model_num %in% c(3, 4, 7, 8) | whole_mesh == T) {
+  C11_proc <- makeC(Dvec, Var = theta[3], Kappa = theta[5], nu = theta[7])
+  C12 <- C1B %*% C11_proc %*% t(C1)    # obs * obs
+  C21 <- t(C12)
+  C22 <- C2_1 + forceSymmetric(C1B %*% forceSymmetric(C11_proc) %*% c(C1B))
+} else {
+  C21 <- C12 <- C11 * theta[9]
+  C22 <- C2_1 + C11 * theta[9]^2
+}
 
-bisq_B <- bisq * Area
-str(bisq_B)  # num [1:4289041]
 
-B <- matrix(bisq_B, n2, n1, byrow = T)
-str(B)
+if (whole_mesh == T) {
+  C11 <- C11_proc
+  C2_1_proc <- makeC(Dvec, Var = theta[4], Kappa = theta[6], nu = theta[8]) 
+  C21 <- C11 %*% B
+  C12 <- t(C21)
+  C22 <- C2_1_proc + crossprod(chol(C11) %*% t(B))
+}
+
+
 
 
 ```
-
-

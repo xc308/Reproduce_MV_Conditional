@@ -37,15 +37,22 @@ Matern_fn_12 <- function(phi = 1, Alpha = 1, d) {
 }
 
 
+# try
+str(Matern_fn_12(d = Dobs_vec))  # num [1:157, 1:157] 
+
+
 
 #------------#
-# Matern 2/3
+# Matern 3/2
 #------------#
 
 Matern_fn_32 <- function(phi = 1, Alpha = 1, d) {
   X <- phi * (1 + Alpha * d) * exp(- Alpha * d)
   matrix(X, nrow = sqrt(length(X)))
 }
+
+# try
+str(Matern_fn_32(d = Dobs_vec))  # num [1:157, 1:157] 
 
 
 
