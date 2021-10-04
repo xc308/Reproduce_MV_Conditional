@@ -433,8 +433,6 @@ We then add these two together to obtain the matrix $\textrm{cov}((\Yvec_1^\T,\Y
 If `whole_mesh` is `TRUE`, then the process covariance matrix is evaluated over the entire mesh (used for cokriging at unobserved locations).
 
 
-
-
 ```{r}
 str(h)  # num [1:4289041, 1:2]
 
@@ -457,6 +455,7 @@ C1B <- C1 %*% B  # obs * proc %*% proc * proc = obs * proc
 
 source("make_cov_fn.R")
 
+# obs level 157
 C11 <- makeC(Dobs_vec, Var = theta[3], Kappa = theta[5], nu = theta[7])  # obs
 C2_1 <- makeC(Dobs_vec, Var = theta[4], Kappa = theta[6], nu = theta[8]) # obs
 
@@ -465,13 +464,14 @@ if (Model_num %in% c(3, 4, 7, 8) | whole_mesh == T) {
   C11_proc <- makeC(Dvec, Var = theta[3], Kappa = theta[5], nu = theta[7])
   C12 <- C1B %*% C11_proc %*% t(C1)    # obs * obs
   C21 <- t(C12)
-  C22 <- C2_1 + forceSymmetric(C1B %*% forceSymmetric(C11_proc) %*% c(C1B))
+  C22 <- C2_1 + forceSymmetric(C1B %*% forceSymmetric(C11_proc) %*% t(C1B))
 } else {
   C21 <- C12 <- C11 * theta[9]
   C22 <- C2_1 + C11 * theta[9]^2
 }
 
 
+# grid level 2071
 if (whole_mesh == T) {
   C11 <- C11_proc
   C2_1_proc <- makeC(Dvec, Var = theta[4], Kappa = theta[6], nu = theta[8]) 
@@ -483,20 +483,229 @@ if (whole_mesh == T) {
 
 
 ## Form matrices (Unscaled pressure)
-C22_true <- ifelse(Model_num < 5, p_scale^2, 1) * C22
-C11_true <- ifelse(Model_num > 4, p_scale^2, 1) * C11
+C22_true <- ifelse(Model_num < 5, 1/p_scale^2, 1) * C22
+C11_true <- ifelse(Model_num > 4, 1/p_scale^2, 1) * C11
 C12_true <- C12 * p_scale
 C21_true <- C21 * p_scale
-
 
 CY_true <- rbind(cbind(C11_true, C12_true), cbind(C21_true, C22_true)) %>% as("dgeMatrix")
 
 
+# ref
+#m1 <- m2 <- nrow(weather)        # Numb of obs of Y1, Y2
+#m  <- m1 + m2                    # total numb of obs
+#I_m1 <- diag(m1)                 # Identity matrix of m1 by m1
 
+I_m1 <- diag(m1)
+Co_true <- bdiag(ifelse(model_num < 5, 1, 1/p_scale^2) * theta[1] * I_m1, 
+      ifelse(model_num < 5, 1/p_scale^2, 1) * theta[2] * I_m1)   
+        # only scale theta[2],as it's related to press
 
+if (whole_mesh == T) t(C) %*% Co_true %*% C   # proc level
 
-
-
-
+list(CY = CY_true, Co = Co_true, Z = form_Z(model_num, scale = F))
 
 ```
+
+
+```{r}
+# ref
+form_Z <- function(model_num, scale = T) {
+  Z1 <- weather$temperature
+  Z2 <- weather$pressure
+  
+  if (scale) Z2 <- Z2 / p_scale   # scale press
+  
+  if (model_num > 4) {
+     temp <- Z1
+     Z1 <- Z2
+     Z2 <- temp                   # reverse Z1, Z2 
+  }
+  Z <- rbind(Z1, Z2)
+}
+```
+
+
+
+```{r} 
+# ref
+h <- matrix(0, n1 * n2, 2)
+areas <- rep(0, n1 * n2)
+for (i in 1:n2) {
+  h[((i - 1) * n1 + 1):(i * n1), ] <- t(t(mesh_locs) - mesh_locs[i, ])
+  areas[((i - 1) * n1 + 1):(i * n1)] <- Mesh["area_tess"]
+}
+```
+
+
+```{r}
+# now put above into one function
+construct_mat <- function(theta, model_num, scale = F) {
+  
+  if (model_num %in% c(3, 4, 7, 8)) {
+    str(h)  # num [1:4289041, 1:2]
+
+    source("bisq_fn(2d_B).R")
+    B <- bisq_B(h, delta = theta[11:12], r =  theta[10],   # h is ready above
+              A = theta[9], area = Area, 
+              n1 = n1, n2 = n2)  #  num [1:2071, 1:2071]  proc lvl
+    
+  }
+    
+  str(C1)  # @ Dim     : int [1:2] 157 2071
+  C1B <- C1 %*% B  # obs * proc %*% proc * proc = obs * proc
+  
+  
+  
+  ## Form matrices (scaled pressure)
+  source("make_cov_fn.R")
+  
+  # obs level 157
+  C11 <- makeC(Dobs_vec, Var = theta[3], Kappa = theta[5], nu = theta[7])  # obs
+  C2_1 <- makeC(Dobs_vec, Var = theta[4], Kappa = theta[6], nu = theta[8]) # obs
+  
+      # link btw obs and proc  
+  if (Model_num %in% c(3, 4, 7, 8) | whole_mesh == T) {
+    C11_proc <- makeC(Dvec, Var = theta[3], Kappa = theta[5], nu = theta[7])
+    C12 <- C1B %*% C11_proc %*% t(C1)    # obs * obs
+    C21 <- t(C12)
+    C22 <- C2_1 + forceSymmetric(C1B %*% forceSymmetric(C11_proc) %*% t(C1B))
+  } else {
+    C21 <- C12 <- C11 * theta[9]
+    C22 <- C2_1 + C11 * theta[9]^2
+  }
+  
+  
+  # grid level 2071
+  if (whole_mesh == T) {
+    S11 <- S11_big       # proc lvl
+    S12 <- B %*% S11     # proc lvl
+    S21 <- t(S12)
+    S22 <- S2_1 %*% C1  + crossprod(chol(S11) %*% t(B))
+  }
+  
+  
+  ## Form matrices (Unscaled pressure)
+  C22_true <- ifelse(Model_num < 5, 1/p_scale^2, 1) * C22
+  C11_true <- ifelse(Model_num > 4, 1/p_scale^2, 1) * C11
+  C12_true <- C12 / p_scale
+  C21_true <- C21 / p_scale
+  
+  CY_true <- rbind(cbind(C11_true, C12_true), cbind(C21_true, C22_true)) %>% as("dgeMatrix")
+
+  
+  ## So
+  I_m1 <- Imat(m1)  # Imat <- function(n) sparseMatrix(i = 1:n, j = 1:n, x = 1)
+  Co_true <- bdiag(ifelse(model_num < 5, 1, 1/p_scale^2) * theta[1] * I_m1, 
+      ifelse(model_num < 5, 1/p_scale^2, 1) * theta[2] * I_m1)   
+        # only scale theta[2],as it's related to press
+
+  if (whole_mesh == T) t(C) %*% Co_true %*% C   # proc level
+
+  list(CY = CY_true, Co = Co_true, Z = form_Z(model_num, scale = F))
+}
+
+```
+
+
+## Loglik
+- Now define the log-liklihood function:
+  - The joint distribution of [Z1, Z2] ~ Gau(\bzero, \bSigma_Z), where the \bSigma_Z = CY + Co. 
+  - So the logLik = -(d/2) * log(2pi) - 1/2 * log(det(\bSigma_Z)) - 1/2 * t(Z) * \bSigma_Z^(-1) * Z.
+
+- To allow CV, drop certain obs: 
+  - The indices to be dropped is stored in `i`, and if no obs drop, then `i = NULL`. 
+  
+
+```{r}
+
+Loglik_Model <- function(theta, model_num, i = NULL) {
+
+  # theta1 <- sigma2e1
+  # theta2 <- sigma2e2
+  # theta3 <- sigma211
+  # theta4 <- sigma22_1
+  # theta5 <- kappa11
+  # theta6 <- kappa2_1
+  # theta7 <- nu11
+  # theta8 <- nu2_1
+  # theta9 <- A
+  # theta10 <- r
+  # theta11 <- delta1
+  # theta12 <- delta2
+  
+  
+  ## append theta M1(5):append 4 0's, M2(6): append 3 0's, M3(7): append 2 0's
+  theta <- append_theta(theta, model_num)
+  
+  
+  ## hard constraint on parameters
+  if (theta[1] <= 0 | theta[2] <= 0 | theta[3] <= 0 | theta[4] <= 0 |
+      theta[5] <= 0.001 | theta[6] <= 0.001 |theta[7] <= 0.05 | theta[8] <= 0.05 |
+      theta[10] <= 0.0005) {
+          return(Inf) 
+  } else {
+    ## Construct Matrices
+    X <- construct_mat(theta, model_num, scale = F)
+    
+    
+    ## drop obs to CV
+    if(is.null(i)) {
+      CY <- X$CY
+      Co <- X$Co
+      Z <- X$Z
+    } else {
+      CY <- X$CY[-i, -i]
+      Co <- X$Co[-i, -i]
+      Z <- X$Z[-i, , drop = F]
+    }
+  
+    ## Evaluate log-lik function
+    cholYo <- chol(CY + Co)
+    log_lik <- -(-0.5 * nrow(Z) * log(2 * pi) 
+    - 0.5 * logdet(cholYo) 
+    - 0.5 * t(Z) %*% chol2inv(cholYo) %*% Z) %>% as.numeric()
+    
+    return(log_lik)
+  
+  }
+}
+```
+
+
+## Optimization 
+  - For optimization, use `optim` (BFGS) function; 
+  - 3000 iterations and set `trace = 6` for detailed output;
+  - not to compute the Hessian as this is not required as not in our analysis;
+  - parameter `i` indicate if the ith obs is involved in the fit, 
+      and if i = NULL, all obs are included. 
+  - the function `optim_loglik` is called for each model later on
+  
+  
+```{r}  
+optim_loglik <- function(par, model_num, i = NULL) {
+  optim(par = par, 
+        fn = Loglik_Model,
+        model_num = model_num,
+        i = i, 
+        hessian = F,
+        control = list(trace = 6, 
+                       pgtol = 0, 
+                       parscale = rep(0.1, length(par)), # par/parscale
+                       maxit = 3000))
+}  
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
