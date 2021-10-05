@@ -2,7 +2,7 @@
 # bisquare function
 #===================#
 
-str(h)  # num [1:4289041, 1:2]
+#str(h)  # num [1:4289041, 1:2]
 
 bisq_2D <- function(h, delta = c(0, 0), r = 1, A = 1) {
   # note: r = 1 is inappropriate
@@ -22,15 +22,15 @@ bisq_B <- function(h, delta = c(0, 0), r = 1, A = 1, area = 1, n1 = 10L, n2 = 10
 
 # TRY out
 
-str(h) # num [1:4289041, 1:2]
+#str(h) # num [1:4289041, 1:2]
 
-which(bisq_2D(hvec = h, r = 160) != 0)
+#which(bisq_2D(hvec = h, r = 160) != 0)
 
-y <- h
-y <- sqrt(y[, 1]^2 + y[, 2]^2)
-y
-str(y)   # num [1:4289041] 
-range(y) # 147.7454 191.8233
+#y <- h
+#y <- sqrt(y[, 1]^2 + y[, 2]^2)
+#y
+#str(y)   # num [1:4289041] 
+#range(y) # 147.7454 191.8233
 
 
 r <- 160
