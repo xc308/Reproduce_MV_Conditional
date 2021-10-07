@@ -17,7 +17,7 @@ Matern_fn <- function(phi = 1, Alpha = 1, nu = 0.05, d) {
   d <- Alpha * d
   d[d == 0] <- 1e-6   # avoid sending exact 0 to basselK
   
-  const <- 2^(nu - 1) * gamma(mu)
+  const <- 2^(nu - 1) * gamma(nu)
   const <- 1/const
   
   X <- phi * const * (d)^nu * besselK(d, nu)  # a vector

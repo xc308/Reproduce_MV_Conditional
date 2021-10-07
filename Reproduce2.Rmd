@@ -865,7 +865,7 @@ print(xtable::xtable(par_est1, digits = c(rep(2, 5), 3, 3, rep(2, 6))),
 cokrig <- function(X, i = NULL) {
   Cz <- X$CY + X$Co
   
-  if (i == NULL) {
+  if (is.null(i)) {
     # predict at all locations 2071
     # Cz at proc level
     
@@ -898,6 +898,9 @@ cokrig <- function(X, i = NULL) {
 
 
 Now predict at all mesh locations using model 1 and 4
+
+
+
 ```{r}
 
 
