@@ -13,7 +13,7 @@ source("Matern_function.R")
 #' @aliases makeQY
 #'
 #' @description Construct the covariance or precision matrix for the bivariate model constructed using the conditional approach.
-#' @param r vector of distances
+#' @param r vector of distances, Dobsvec or Dvec
 #' @param var variance of C
 #' @param var1 variance of C_{11}
 #' @param var2 variance of C_{2|1}

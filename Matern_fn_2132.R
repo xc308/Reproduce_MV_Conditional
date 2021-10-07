@@ -6,26 +6,6 @@
 # - Matern 1/2
 # - Matern 3/2
 
-#----------#
-# Matern
-#----------#
-
-Matern_fn <- function(phi = 1, Alpha = 1, nu = 0.05, d) {
-  if (any(d) < 0) 
-    stop("distance d must be non-neg.")
-  
-  d <- Alpha * d
-  d[d == 0] <- 1e-6   # avoid sending exact 0 to basselK
-  
-  const <- 2^(nu - 1) * gamma(nu)
-  const <- 1/const
-  
-  X <- phi * const * (d)^nu * besselK(d, nu)  # a vector
-  matrix(X, nrow = sqrt(length(X)))
-  
-}
-
-
 
 #------------#
 # Matern 1/2
@@ -56,6 +36,24 @@ str(Matern_fn_32(d = Dobs_vec))  # num [1:157, 1:157]
 
 
 
+#----------#
+# Matern
+#----------#
+
+Matern_fn <- function(phi = 1, Alpha = 1, nu = 0.5, d) {
+  if (any(d) < 0) 
+  stop("distance d must be non-neg.")
+  
+  d <- Alpha * d
+  d[d == 0] <- 1e-6   # avoid sending exact 0 to basselK
+  
+  const <- 2^(nu - 1) * gamma(nu)
+  const <- 1/const
+  
+  X <- phi * const * (d)^nu * besselK(d, nu)  # a vector
+  matrix(X, nrow = sqrt(length(X)))
+  
+}
 
 
 
