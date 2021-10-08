@@ -549,7 +549,7 @@ for (i in 1:n2) {
 
 ```{r}
 # now put above into one function
-construct_mat <- function(theta, model_num, scale = F) {
+construct_mat <- function(theta, model_num, whole_mesh = F) {
   
   if (model_num %in% c(3, 4, 7, 8)) {
     str(h)  # num [1:4289041, 1:2]
@@ -574,7 +574,7 @@ construct_mat <- function(theta, model_num, scale = F) {
   C2_1 <- makeC(Dobs_vec, Var = theta[4], Kappa = theta[6], nu = theta[8]) # obs
   
       # link btw obs and proc  
-  if (Model_num %in% c(3, 4, 7, 8) | whole_mesh == T) {
+  if (model_num %in% c(3, 4, 7, 8) | whole_mesh == T) {
     C11_proc <- makeC(Dvec, Var = theta[3], Kappa = theta[5], nu = theta[7])
     C12 <- C1B %*% C11_proc %*% t(C1)    # obs * obs
     C21 <- t(C12)
@@ -587,16 +587,17 @@ construct_mat <- function(theta, model_num, scale = F) {
   
   # grid level 2071
   if (whole_mesh == T) {
-    S11 <- S11_big       # proc lvl
-    S12 <- B %*% S11     # proc lvl
-    S21 <- t(S12)
-    S22 <- S2_1 %*% C1  + crossprod(chol(S11) %*% t(B))
+    C11 <- C11_proc       # proc lvl
+    C12 <- B %*% C11     # proc lvl
+    C21 <- t(C12)
+    C22 <- C2_1 %*% C1  + crossprod(chol(C11)) %*% t(B)
   }
   
   
+  
   ## Form matrices (Unscaled pressure)
-  C22_true <- ifelse(Model_num < 5, p_scale^2, 1) * C22
-  C11_true <- ifelse(Model_num > 4, p_scale^2, 1) * C11
+  C22_true <- ifelse(model_num < 5, p_scale^2, 1) * C22
+  C11_true <- ifelse(model_num > 4, p_scale^2, 1) * C11
   C12_true <- C12 * p_scale
   C21_true <- C21 * p_scale
   
@@ -605,8 +606,8 @@ construct_mat <- function(theta, model_num, scale = F) {
   
   ## So
   I_m1 <- Imat(m1)  # Imat <- function(n) sparseMatrix(i = 1:n, j = 1:n, x = 1)
-  Co_true <- bdiag(ifelse(model_num < 5, 1, 1/p_scale^2) * theta[1] * I_m1, 
-      ifelse(model_num < 5, 1/p_scale^2, 1) * theta[2] * I_m1)   
+  Co_true <- bdiag(ifelse(model_num < 5, 1, p_scale^2) * theta[1] * I_m1, 
+      ifelse(model_num < 5, p_scale^2, 1) * theta[2] * I_m1)   
         # only scale theta[2],as it's related to press
 
   if (whole_mesh == T) t(C) %*% Co_true %*% C   # proc level
@@ -624,8 +625,6 @@ construct_mat <- function(theta, model_num, scale = F) {
 
 - To allow CV, drop certain obs: 
   - The indices to be dropped is stored in `i`, and if no obs drop, then `i = NULL`. 
-  
-
 ```{r}
 
 Loglik_Model <- function(theta, model_num, i = NULL) {
@@ -896,14 +895,110 @@ cokrig <- function(X, i = NULL) {
 
 
 
-
 Now predict at all mesh locations using model 1 and 4
-
+- 1st construct the required matrices X1, X4
+- then carry out the cokriging and add the mean predictions to the mesh
 
 
 ```{r}
 
+X1 <- construct_mat(theta = append_theta(theta = fit_all_data[[1]]$par, model_num = 1),
+                    model_num = 1, whole_mesh = T)
+
+#X4 <- construct_mat(theta = append_theta(theta = fit_all_data[[1]]$par, model_num = 4), 
+#                    model_num = 4, whole_mesh = T)
 
 
-
+#ALL1 <- cokrig(X = X1, i = NULL)
+#ALL4 <- cokrig(X = X4, i = NULL)
 ```
+
+
+
+
+
+## Question??
+
+```{r}
+Matern_fn <- function(phi = 1, Alpha = 1, nu = 0.5, d) {
+  if (any(d) < 0) 
+  stop("distance d must be non-neg.")
+  
+  d <- Alpha * d
+  d[d == 0] <- 1e-6   # avoid sending exact 0 to basselK
+  
+  const <- 2^(nu - 1) * gamma(nu)
+  const <- 1/const
+  
+  X <- phi * const * (d)^nu * besselK(d, nu)  # a vector
+  matrix(X, nrow = sqrt(length(X)))
+  
+}
+
+M_results <- Matern_fn(phi = fit_all_data[[1]]$par[3], 
+          Alpha = fit_all_data[[1]]$par[5],
+          nu = fit_all_data[[1]]$par[7],
+          d = Dvec)
+
+
+str(M_results) # num [1:2071, 1:2071]
+
+isSymmetric(M_results)  # [1] TRUE
+is.positive.definite(M_results)  # [1] TRUE
+Cross_M <- crossprod(chol(M_results))
+```
+
+```{r}
+# incorperate Matern_fn in a new function makeC
+
+makeC <- function(d, Var, Kappa, nu) {
+  if (nu == 3/2) {
+    C <- Matern_fn_32(phi = Var, Alpha = Kappa, nu)
+  } else if (nu == 1/2){
+    C <- Matern_fn_12 (d, phi = Var, Alpha = Kappa)
+  } else {
+    C <- Matern_fn(d, phi = Var, Alpha = Kappa, nu)
+  }
+  C
+}
+
+
+C11_proc <- makeC(Dvec, Var = fit_all_data[[1]]$par[3], Kappa = fit_all_data[[1]]$par[5], nu = fit_all_data[[1]]$par[7])
+# Warning in gamma(nu) : NaNs produced
+
+
+isSymmetric(C11_proc )  # [1] TRUE
+is.positive.definite(C11_proc) # No
+```
+
+
+
+
+## Leave-one-out cross validation
+
+
+
+
+
+
+## The shifted parsimonious Matérn model
+
+Repeat the analysis above for the *shifted* parsimonious Matérn model,
+obtained by applying the method of @Li_2011 to the standard parsimonious model.
+First we define a function that constructs the matrices based on the usual parameters.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

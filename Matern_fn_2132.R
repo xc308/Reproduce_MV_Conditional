@@ -2,9 +2,9 @@
 # Matern Function
 #================#
 
-# - Matern
 # - Matern 1/2
 # - Matern 3/2
+# - Matern
 
 
 #------------#
@@ -18,7 +18,7 @@ Matern_fn_12 <- function(phi = 1, Alpha = 1, d) {
 
 
 # try
-str(Matern_fn_12(d = Dobs_vec))  # num [1:157, 1:157] 
+#str(Matern_fn_12(d = Dobs_vec))  # num [1:157, 1:157] 
 
 
 
@@ -32,7 +32,7 @@ Matern_fn_32 <- function(phi = 1, Alpha = 1, d) {
 }
 
 # try
-str(Matern_fn_32(d = Dobs_vec))  # num [1:157, 1:157] 
+#str(Matern_fn_32(d = Dobs_vec))  # num [1:157, 1:157] 
 
 
 
@@ -54,31 +54,5 @@ Matern_fn <- function(phi = 1, Alpha = 1, nu = 0.5, d) {
   matrix(X, nrow = sqrt(length(X)))
   
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 

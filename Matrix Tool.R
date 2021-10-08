@@ -14,7 +14,6 @@ t(chma) %*% chma  # ma
 ma %*% chol2inv(chma)   # I
 
 
-
 #---------#
 # logdet
 #---------#
@@ -23,7 +22,7 @@ logdet <- function(U) {
   # U is a chol factor
   # 1st extract the diag of U, get Uii
   diagU <- diag(U)
-  
+
   return(2 * sum(log(diag(diagU))))
   
 }

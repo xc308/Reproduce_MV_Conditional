@@ -16,7 +16,7 @@ void covMat1(double *out, int *n, double *h, double *var, double *kappa) {
 
 
 //[[Rcpp::export]]
-NumericVector covMat1_call(NumericVector h, doulbe var, double kappa) {
+NumericVector covMat1_call(NumericVector h, double var, double kappa) {
   int n = h.size();
   NumericVector out(n);
   
