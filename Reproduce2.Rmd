@@ -544,6 +544,10 @@ for (i in 1:n2) {
   h[((i - 1) * n1 + 1):(i * n1), ] <- t(t(mesh_locs) - mesh_locs[i, ])
   areas[((i - 1) * n1 + 1):(i * n1)] <- Mesh["area_tess"]
 }
+
+head(h)
+str(mesh_locs)
+
 ```
 
 
@@ -569,13 +573,14 @@ construct_mat <- function(theta, model_num, whole_mesh = F) {
   ## Form matrices (scaled pressure)
   source("make_cov_fn.R")
   
-  # obs level 157
-  C11 <- makeC(Dobs_vec, Var = theta[3], Kappa = theta[5], nu = theta[7])  # obs
-  C2_1 <- makeC(Dobs_vec, Var = theta[4], Kappa = theta[6], nu = theta[8]) # obs
   
-      # link btw obs and proc  
+  # obs level 157
+  C11 <- makeC(D = Dobs_vec, Var = theta[3], Kappa = theta[5], nu = theta[7])  # obs
+  C2_1 <- makeC(D = Dobs_vec, Var = theta[4], Kappa = theta[6], nu = theta[8]) # obs
+  
+      # need to link btw obs and proc  
   if (model_num %in% c(3, 4, 7, 8) | whole_mesh == T) {
-    C11_proc <- makeC(Dvec, Var = theta[3], Kappa = theta[5], nu = theta[7])
+    C11_proc <- makeC(D = Dvec, Var = theta[3], Kappa = theta[5], nu = theta[7])
     C12 <- C1B %*% C11_proc %*% t(C1)    # obs * obs
     C21 <- t(C12)
     C22 <- C2_1 + forceSymmetric(C1B %*% forceSymmetric(C11_proc) %*% t(C1B))
@@ -586,13 +591,14 @@ construct_mat <- function(theta, model_num, whole_mesh = F) {
   
   
   # grid level 2071
+  # no need to link btw obs and proc
   if (whole_mesh == T) {
     C11 <- C11_proc       # proc lvl
-    C12 <- B %*% C11     # proc lvl
+    C2_1 <- makeC(D = Dvec, Var = theta[4], Kappa = theta[6], nu = theta[8])
+    C12 <- B %*% C11      # proc lvl
     C21 <- t(C12)
-    C22 <- C2_1 %*% C1  + crossprod(chol(C11)) %*% t(B)
+    C22 <- C2_1 + crossprod(chol(C11)) %*% t(B)  
   }
-  
   
   
   ## Form matrices (Unscaled pressure)
@@ -604,7 +610,10 @@ construct_mat <- function(theta, model_num, whole_mesh = F) {
   CY_true <- rbind(cbind(C11_true, C12_true), cbind(C21_true, C22_true)) %>% as("dgeMatrix")
 
   
-  ## So
+  ## So, obs level
+  
+  
+  
   I_m1 <- Imat(m1)  # Imat <- function(n) sparseMatrix(i = 1:n, j = 1:n, x = 1)
   Co_true <- bdiag(ifelse(model_num < 5, 1, p_scale^2) * theta[1] * I_m1, 
       ifelse(model_num < 5, p_scale^2, 1) * theta[2] * I_m1)   
@@ -613,7 +622,7 @@ construct_mat <- function(theta, model_num, whole_mesh = F) {
   if (whole_mesh == T) t(C) %*% Co_true %*% C   # proc level
 
   list(CY = CY_true, Co = Co_true, Z = form_Z(model_num, scale = F))
-}
+} 
 
 ```
 
@@ -898,15 +907,13 @@ cokrig <- function(X, i = NULL) {
 Now predict at all mesh locations using model 1 and 4
 - 1st construct the required matrices X1, X4
 - then carry out the cokriging and add the mean predictions to the mesh
-
-
 ```{r}
 
 X1 <- construct_mat(theta = append_theta(theta = fit_all_data[[1]]$par, model_num = 1),
                     model_num = 1, whole_mesh = T)
 
-#X4 <- construct_mat(theta = append_theta(theta = fit_all_data[[1]]$par, model_num = 4), 
-#                    model_num = 4, whole_mesh = T)
+X4 <- construct_mat(theta = append_theta(theta = fit_all_data[[1]]$par, model_num = 4), 
+                    model_num = 4, whole_mesh = T)
 
 
 #ALL1 <- cokrig(X = X1, i = NULL)
@@ -951,19 +958,19 @@ Cross_M <- crossprod(chol(M_results))
 ```{r}
 # incorperate Matern_fn in a new function makeC
 
-makeC <- function(d, Var, Kappa, nu) {
+makeC <- function(Var, Kappa, nu, D) {
   if (nu == 3/2) {
     C <- Matern_fn_32(phi = Var, Alpha = Kappa, nu)
   } else if (nu == 1/2){
-    C <- Matern_fn_12 (d, phi = Var, Alpha = Kappa)
+    C <- Matern_fn_12 (phi = Var, Alpha = Kappa, d = D)
   } else {
-    C <- Matern_fn(d, phi = Var, Alpha = Kappa, nu)
+    C <- Matern_fn(phi = Var, Alpha = Kappa, nu = nu, d = D)
   }
   C
 }
 
 
-C11_proc <- makeC(Dvec, Var = fit_all_data[[1]]$par[3], Kappa = fit_all_data[[1]]$par[5], nu = fit_all_data[[1]]$par[7])
+C11_proc <- makeC(Var = fit_all_data[[1]]$par[3], Kappa = fit_all_data[[1]]$par[5], nu = fit_all_data[[1]]$par[7], D = Dvec)
 # Warning in gamma(nu) : NaNs produced
 
 
@@ -987,8 +994,7 @@ Repeat the analysis above for the *shifted* parsimonious Matérn model,
 obtained by applying the method of @Li_2011 to the standard parsimonious model.
 First we define a function that constructs the matrices based on the usual parameters.
 
-
-
+View(cor)
 
 
 
