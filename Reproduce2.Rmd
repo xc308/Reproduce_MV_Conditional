@@ -327,7 +327,7 @@ Area.tess <- Voroni$summary$dir.area
 ```
 
 ```{r}
-View(deldir)
+#View(deldir)
 
 ```
 
@@ -611,9 +611,6 @@ construct_mat <- function(theta, model_num, whole_mesh = F) {
 
   
   ## So, obs level
-  
-  
-  
   I_m1 <- Imat(m1)  # Imat <- function(n) sparseMatrix(i = 1:n, j = 1:n, x = 1)
   Co_true <- bdiag(ifelse(model_num < 5, 1, p_scale^2) * theta[1] * I_m1, 
       ifelse(model_num < 5, p_scale^2, 1) * theta[2] * I_m1)   
@@ -684,7 +681,6 @@ Loglik_Model <- function(theta, model_num, i = NULL) {
     - 0.5 * t(Z) %*% chol2inv(cholYo) %*% Z) %>% as.numeric()
     
     return(log_lik)
-  
   }
 }
 ```
@@ -736,9 +732,9 @@ fit_all_models <- function(i) {
   fit.Model4 <- optim_loglik(par = c(fit.Model3$par, 0, 0), model_num = 4, i)
   
   fit.Model1_rev <- optim_loglik(par = c(1, 0.01, 15, 5, 0.01, 0.01, 1.5, 0.6), model_num = 5, i)
-  fit.Model2_rev <- optim_loglik(par = fit.Model1_rev$par, model_num = 6, i)
-  fit.Model3_rev <- optim_loglik(par = fit.Model2_rev$par, model_num = 7, i)
-  fit.Model4_rev <- optim_loglik(par = fit.Model3_rev$par, model_num = 8, i)
+  fit.Model2_rev <- optim_loglik(par = c(fit.Model1_rev$par, -0.2), model_num = 6, i)
+  fit.Model3_rev <- optim_loglik(par = c(fit.Model2_rev$par, 0.1), model_num = 7, i)
+  fit.Model4_rev <- optim_loglik(par = c(fit.Model3_rev$par, 0, 0), model_num = 8, i)
   
   list(Model1 = fit.Model1,
        Model2 = fit.Model2,
