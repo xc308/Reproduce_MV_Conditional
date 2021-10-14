@@ -41,8 +41,8 @@ Matern_fn_32 <- function(phi = 1, Alpha = 1, d) {
 #----------#
 
 Matern_fn <- function(phi = 1, Alpha = 1, nu = 0.5, d) {
-  if (any(d) < 0) 
-  stop("distance d must be non-neg.")
+  #if (any(d) < 0) 
+  #stop("distance d must be non-neg.")
   
   d <- Alpha * d
   d[d == 0] <- 1e-6   # avoid sending exact 0 to basselK

@@ -448,9 +448,8 @@ str(h)  # num [1:4289041, 1:2]
 source("bisq_fn(2d_B).R")
 
 if (model_num %in% c(3, 4, 7, 8)) {
-  B <- bisq_B(h, delta = theta[11:12], r =  theta[10], 
-              A = theta[9], area = Area, 
-              n1 = n1, n2 = n2)  #  num [1:2071, 1:2071]  proc lvl
+  B <- theta[9] * bisq_B(h, delta = theta[11:12], r =  theta[10], area = Area, 
+                         n1 = n1, n2 = n2)  #  num [1:2071, 1:2071]  proc lvl
 }
 
 str(C1)  # @ Dim     : int [1:2] 157 2071
@@ -555,14 +554,15 @@ str(mesh_locs)
 # now put above into one function
 construct_mat <- function(theta, model_num, whole_mesh = F) {
   
+  B <- theta[9] * Diagonal(n1)
+  
+  
   if (model_num %in% c(3, 4, 7, 8)) {
     str(h)  # num [1:4289041, 1:2]
 
     source("bisq_fn(2d_B).R")
-    B <- bisq_B(h, delta = theta[11:12], r =  theta[10],   # h is ready above
-              A = theta[9], area = Area, 
-              n1 = n1, n2 = n2)  #  num [1:2071, 1:2071]  proc lvl
-    
+    B <- theta[9] * bisq_B(h, delta = theta[11:12], r =  theta[10],area = Area,
+                           n1 = n1, n2 = n2)  #  num [1:2071, 1:2071]  proc lvl
   }
     
   str(C1)  # @ Dim     : int [1:2] 157 2071
@@ -581,12 +581,12 @@ construct_mat <- function(theta, model_num, whole_mesh = F) {
       # need to link btw obs and proc  
   if (model_num %in% c(3, 4, 7, 8) | whole_mesh == T) {
     C11_proc <- makeC(D = Dvec, Var = theta[3], Kappa = theta[5], nu = theta[7])
-    C12 <- C1B %*% C11_proc %*% t(C1)    # obs * obs
+    C12 <- C1B %*% (C11_proc %*% t(C1))   # obs * obs
     C21 <- t(C12)
     C22 <- C2_1 + forceSymmetric(C1B %*% forceSymmetric(C11_proc) %*% t(C1B))
   } else {
-    C21 <- C12 <- C11 * theta[9]
-    C22 <- C2_1 + C11 * theta[9]^2
+    C21 <- C12 <- theta[9] * C11
+    C22 <- C2_1 + theta[9]^2 * C11 
   }
   
   
@@ -597,7 +597,7 @@ construct_mat <- function(theta, model_num, whole_mesh = F) {
     C2_1 <- makeC(D = Dvec, Var = theta[4], Kappa = theta[6], nu = theta[8])
     C12 <- B %*% C11      # proc lvl
     C21 <- t(C12)
-    C22 <- C2_1 + crossprod(chol(C11)) %*% t(B)  
+    C22 <- C2_1 + crossprod(chol(C11) %*% t(B))
   }
   
   
@@ -613,7 +613,7 @@ construct_mat <- function(theta, model_num, whole_mesh = F) {
   ## So, obs level
   I_m1 <- Imat(m1)  # Imat <- function(n) sparseMatrix(i = 1:n, j = 1:n, x = 1)
   Co_true <- bdiag(ifelse(model_num < 5, 1, p_scale^2) * theta[1] * I_m1, 
-      ifelse(model_num < 5, p_scale^2, 1) * theta[2] * I_m1)   
+                   ifelse(model_num < 5, p_scale^2, 1) * theta[2] * I_m1)   
         # only scale theta[2],as it's related to press
 
   if (whole_mesh == T) t(C) %*% Co_true %*% C   # proc level
@@ -660,7 +660,7 @@ Loglik_Model <- function(theta, model_num, i = NULL) {
           return(Inf) 
   } else {
     ## Construct Matrices
-    X <- construct_mat(theta, model_num, scale = F)
+    X <- construct_mat(theta, model_num)
     
     
     ## drop obs to CV
@@ -750,6 +750,18 @@ fit_all_models <- function(i) {
 
 
 
+```{r}
+
+## try out using model1
+fit.Model1 <- optim_loglik(par = c(0.01, 1, 5, 15, 0.01, 0.01, 0.6, 1.5), model_num = 1, i = NULL)
+fit.Model2 <- optim_loglik(par = c(fit.Model1$par, -0.2), model_num = 2, i = NULL)
+
+fit.Model3 <- optim_loglik(par = c(fit.Model2$par, 0.1), model_num = 3, i = NULL)
+
+fit.Model4 <- optim_loglik(par = c(fit.Model3$par, 0, 0), model_num = 4, i = NULL)
+
+```
+
 ## Fit all models above to data
 - refer to lines 141, when LK analysis is 0, then load results from cache, 
   when 1, fit from scratch
@@ -757,10 +769,13 @@ fit_all_models <- function(i) {
 ```{r}  
 if (LK_analysis == 1) {
   fit_all_data <- fit_all_models(i = NULL)
-  save("fit_all_data", file = paste0("/Users/xchen/Dropbox/Learn/Reproduce_MV_Conditional/LK_analysis.rda"))
+  save("fit_all_data", file = paste0("/Users/xchen/Dropbox/Learn/Reproduce_MV_Conditional/fit_all_data.rda"))
 } else {
   load(system.file("extdata/temp_pressure", "LK.fit.rda", package = "bicon"))
 }
+
+
+
 
 # results from option + : π†¥øœ∑´®åß∂ƒ©˙∆˚¬…Ω≈ç√∫~ µ≤≥÷¡€#¢¢∞¶•ªº <- ≠
 # getwd() 
@@ -912,68 +927,9 @@ X4 <- construct_mat(theta = append_theta(theta = fit_all_data[[1]]$par, model_nu
                     model_num = 4, whole_mesh = T)
 
 
-#ALL1 <- cokrig(X = X1, i = NULL)
+ALL1 <- cokrig(X = X1, i = NULL)
 #ALL4 <- cokrig(X = X4, i = NULL)
 ```
-
-
-
-
-
-## Question??
-
-```{r}
-Matern_fn <- function(phi = 1, Alpha = 1, nu = 0.5, d) {
-  if (any(d) < 0) 
-  stop("distance d must be non-neg.")
-  
-  d <- Alpha * d
-  d[d == 0] <- 1e-6   # avoid sending exact 0 to basselK
-  
-  const <- 2^(nu - 1) * gamma(nu)
-  const <- 1/const
-  
-  X <- phi * const * (d)^nu * besselK(d, nu)  # a vector
-  matrix(X, nrow = sqrt(length(X)))
-  
-}
-
-M_results <- Matern_fn(phi = fit_all_data[[1]]$par[3], 
-          Alpha = fit_all_data[[1]]$par[5],
-          nu = fit_all_data[[1]]$par[7],
-          d = Dvec)
-
-
-str(M_results) # num [1:2071, 1:2071]
-
-isSymmetric(M_results)  # [1] TRUE
-is.positive.definite(M_results)  # [1] TRUE
-Cross_M <- crossprod(chol(M_results))
-```
-
-```{r}
-# incorperate Matern_fn in a new function makeC
-
-makeC <- function(Var, Kappa, nu, D) {
-  if (nu == 3/2) {
-    C <- Matern_fn_32(phi = Var, Alpha = Kappa, nu)
-  } else if (nu == 1/2){
-    C <- Matern_fn_12 (phi = Var, Alpha = Kappa, d = D)
-  } else {
-    C <- Matern_fn(phi = Var, Alpha = Kappa, nu = nu, d = D)
-  }
-  C
-}
-
-
-C11_proc <- makeC(Var = fit_all_data[[1]]$par[3], Kappa = fit_all_data[[1]]$par[5], nu = fit_all_data[[1]]$par[7], D = Dvec)
-# Warning in gamma(nu) : NaNs produced
-
-
-isSymmetric(C11_proc )  # [1] TRUE
-is.positive.definite(C11_proc) # No
-```
-
 
 
 
@@ -990,17 +946,93 @@ Repeat the analysis above for the *shifted* parsimonious Matérn model,
 obtained by applying the method of @Li_2011 to the standard parsimonious model.
 First we define a function that constructs the matrices based on the usual parameters.
 
-View(cor)
+```{r}
+
+sh_pars_mats <- function(theta) {
+  
+  # theta[1]: delta1
+  # theta[2]: delta2
+  # theta[3]: kappa
+  # theta[4]: nu1
+  # theta[5]: nu2
+  # theta[6]: rho
+  # theta[7]: tau1
+  # theta[8]: tau2 / 100
+  # theta[9]: sigam2_11
+  # theta[10]: sigam2_22 / 10000
+  
+  ## create the shifted locations for cross-covariance
+  new_locs <- weather[, 3:4] + matrix(theta[1:2], ncol = 2, 
+                                      nrow = nrow(weather), byrow = T)
+  X <- rbind(new_locs, weather[, 3:4])
+  tot.D <- as.matrix(RFearth2dist(as.matrix(X)))
+  D21 <- tot.D[-(1:m1), 1:m1]
+  D12 <- t(D21)
+  
+  
+  ## construct variance - covariance matrix using parsimounious Matern Gneiting 2010
+  CY11 <- makeC(D = Dobsvec, Var = theta[9], Kappa = theta[3], nu = theta[4])
+  CY22 <- makeC(D = Dobsvec, Var = theta[10], Kappa = theta[3], nu = theta[5])
+  CY21 <- makeC(D = D21, Var = theta[6] * sqrt(theta[9] * theta[10]),
+               Kappa = theta[3], nu = 0.5 * (theta[4] + theta[5]))
+  CY12 <- t(CY21)
+  
+  CY <- cbind(rbind(CY11, CY21), rbind(CY12, CY22))
+
+    
+  Co11 <- theta[7]^2 * diag(m1)
+  Co22 <- theta[8]^2 * diag(m2)
+  Co <- bdiag(Co11, Co22)
+  
+  list(CY = CY, Co = Co, Z = form_Z(1L, scale = F))
+}
+```
 
 
 
+Next, we define the likelihood funciton; 
+note that the parameter definitions for the parsimonious Matérn are different than for the conditional approach.
+
+```{r}
+logLik_sh_pars_model <- function(theta, shift = F) {
+  
+  # theta[1]: delta1
+  # theta[2]: delta2
+  # theta[3]: kappa
+  # theta[4]: nu1
+  # theta[5]: nu2
+  # theta[6]: rho
+  # theta[7]: tau1
+  # theta[8]: tau2/100
+  # theta[9]: sigam2_11
+  # theta[10]: sigma2_22 / 10000
+  
+  
+  
+  ## constraints on pars
+  
+  
+  
+  ## convert theta[8], and theta[10] back on original scale
+  
+  
+  ## get the data
+  
+  
+  
+  ## get the cross-covariance matrices
+  
+  
+  
+  ## loglik
+  
+  
+  
+  
+  
+  
+}
 
 
-
-
-
-
-
-
-
+```
 

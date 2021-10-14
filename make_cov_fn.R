@@ -13,7 +13,7 @@
 source("Matern_fn_2132.R")
 
 
-makeC <- function(D, Var, Kappa, nu) {
+makeC <- function(Var, Kappa, nu, D) {
   if (nu == 3/2) {
     C <- Matern_fn_32(phi = Var, Alpha = Kappa, d = D)
   } else if (nu == 1/2) {
