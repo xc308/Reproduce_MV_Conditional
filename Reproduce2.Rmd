@@ -377,6 +377,8 @@ str(h) # num [1:4289041, 1:2]
 h1_double <- as.double(h[, 1])
 h2_double <- as.double(h[, 2])
 str(h1_double)
+
+str(Area)
 ```
 
 
@@ -464,14 +466,14 @@ C1B <- C1 %*% B  # obs * proc %*% proc * proc = obs * proc
 source("make_cov_fn.R")
 
 # obs level 157
-C11 <- makeC(h = Dobs_vec, Var = theta[3], Kappa = theta[5], nu = theta[7])  # obs
-C2_1 <- makeC(h = Dobs_vec, Var = theta[4], Kappa = theta[6], nu = theta[8]) # obs
+C11 <- makeC(D = Dobs_vec, Var = theta[3], Kappa = theta[5], nu = theta[7])  # obs
+C2_1 <- makeC(D = Dobs_vec, Var = theta[4], Kappa = theta[6], nu = theta[8]) # obs
 
 
 if (Model_num %in% c(3, 4, 7, 8) | whole_mesh == T) {
   C11_proc <- makeC(Dvec, Var = theta[3], Kappa = theta[5], nu = theta[7])
-  C12 <- C1B %*% C11_proc %*% t(C1)    # obs * obs
-  C21 <- t(C12)
+  C21 <- C1B %*% C11_proc %*% t(C1)    # obs * obs
+  C12 <- t(C21)
   C22 <- C2_1 + forceSymmetric(C1B %*% forceSymmetric(C11_proc) %*% t(C1B))
 } else {
   C21 <- C12 <- C11 * theta[9]
@@ -483,7 +485,7 @@ if (Model_num %in% c(3, 4, 7, 8) | whole_mesh == T) {
 if (whole_mesh == T) {
   C11 <- C11_proc
   C2_1_proc <- makeC(Dvec, Var = theta[4], Kappa = theta[6], nu = theta[8]) 
-  C21 <- C11 %*% B
+  C21 <- B %*% C11  # differentiate btw C21 and C12
   C12 <- t(C21)
   C22 <- C2_1_proc + crossprod(chol(C11) %*% t(B))
 }
@@ -513,24 +515,6 @@ if (whole_mesh == T) t(C) %*% Co_true %*% C   # proc level
 
 list(CY = CY_true, Co = Co_true, Z = form_Z(model_num, scale = F))
 
-```
-
-
-```{r}
-# ref
-form_Z <- function(model_num, scale = T) {
-  Z1 <- weather$temperature
-  Z2 <- weather$pressure
-  
-  if (scale) Z2 <- Z2 / p_scale   # scale press
-  
-  if (model_num > 4) {
-     temp <- Z1
-     Z1 <- Z2
-     Z2 <- temp                   # reverse Z1, Z2 
-  }
-  Z <- rbind(Z1, Z2)
-}
 ```
 
 
@@ -581,8 +565,8 @@ construct_mat <- function(theta, model_num, whole_mesh = F) {
       # need to link btw obs and proc  
   if (model_num %in% c(3, 4, 7, 8) | whole_mesh == T) {
     C11_proc <- makeC(D = Dvec, Var = theta[3], Kappa = theta[5], nu = theta[7])
-    C12 <- C1B %*% (C11_proc %*% t(C1))   # obs * obs
-    C21 <- t(C12)
+    C21 <- C1B %*% (C11_proc %*% t(C1))   # obs * obs
+    C12 <- t(C21)
     C22 <- C2_1 + forceSymmetric(C1B %*% forceSymmetric(C11_proc) %*% t(C1B))
   } else {
     C21 <- C12 <- theta[9] * C11
@@ -595,8 +579,8 @@ construct_mat <- function(theta, model_num, whole_mesh = F) {
   if (whole_mesh == T) {
     C11 <- C11_proc       # proc lvl
     C2_1 <- makeC(D = Dvec, Var = theta[4], Kappa = theta[6], nu = theta[8])
-    C12 <- B %*% C11      # proc lvl
-    C21 <- t(C12)
+    C21 <- B %*% C11      # proc lvl, differentiate btw C21 and C12
+    C12 <- t(C21)
     C22 <- C2_1 + crossprod(chol(C11) %*% t(B))
   }
   
@@ -928,7 +912,7 @@ X4 <- construct_mat(theta = append_theta(theta = fit_all_data[[1]]$par, model_nu
 
 
 ALL1 <- cokrig(X = X1, i = NULL)
-#ALL4 <- cokrig(X = X4, i = NULL)
+ALL4 <- cokrig(X = X4, i = NULL)
 ```
 
 
@@ -971,13 +955,13 @@ sh_pars_mats <- function(theta) {
   
   
   ## construct variance - covariance matrix using parsimounious Matern Gneiting 2010
-  CY11 <- makeC(D = Dobsvec, Var = theta[9], Kappa = theta[3], nu = theta[4])
-  CY22 <- makeC(D = Dobsvec, Var = theta[10], Kappa = theta[3], nu = theta[5])
-  CY21 <- makeC(D = D21, Var = theta[6] * sqrt(theta[9] * theta[10]),
+  CY11 <- makeC(D = Dobs_vec, Var = theta[9], Kappa = theta[3], nu = theta[4])
+  CY22 <- makeC(D = Dobs_vec, Var = theta[10], Kappa = theta[3], nu = theta[5])
+  CY12 <- makeC(D = D12, Var = theta[6] * sqrt(theta[9] * theta[10]),
                Kappa = theta[3], nu = 0.5 * (theta[4] + theta[5]))
-  CY12 <- t(CY21)
+  CY21 <- t(CY12)
   
-  CY <- cbind(rbind(CY11, CY21), rbind(CY12, CY22))
+  CY <- cbind(rbind(CY11, CY12), rbind(CY21, CY22))
 
     
   Co11 <- theta[7]^2 * diag(m1)
@@ -986,6 +970,8 @@ sh_pars_mats <- function(theta) {
   
   list(CY = CY, Co = Co, Z = form_Z(1L, scale = F))
 }
+
+
 ```
 
 
@@ -998,40 +984,136 @@ logLik_sh_pars_model <- function(theta, shift = F) {
   
   # theta[1]: delta1
   # theta[2]: delta2
-  # theta[3]: kappa
-  # theta[4]: nu1
-  # theta[5]: nu2
-  # theta[6]: rho
-  # theta[7]: tau1
-  # theta[8]: tau2/100
-  # theta[9]: sigam2_11
-  # theta[10]: sigma2_22 / 10000
-  
+  # theta[3]: kappa >= 0.00001 
+  # theta[4]: nu1 >= 0.1
+  # theta[5]: nu2 >= 0.1
+  # theta[6]: rho abs(.) < 1
+  # theta[7]: tau1  > 0
+  # theta[8]: tau2/100  > 0
+  # theta[9]: sigam2_11  > 0
+  # theta[10]: sigma2_22 / 10000   > 0 
   
   
   ## constraints on pars
+  if (theta[3] < 0.00001 | theta[4] < 0.1 | theta[5] < 0.1 | 
+      abs(theta[6]) >= 1 | theta[7] <= 0 | theta[8] <= 0 | 
+      theta[9] <= 0 | theta[10] <= 0) {
+    return(Inf) 
+  } else if (abs(theta[6]) > sqrt(theta[4] * theta[5]) / (0.5 * (theta[4] + theta[5]))) {
+        return(Inf)
+  } else {
+       if (shift == F) theta[1] <- theta[2] <- 0
   
+       
+      ## convert theta[8], and theta[10] back on original scale
+      theta[8] <- theta[8] * 100
+      theta[10] <- theta[10] * 10000
+         
+       
+       ## get the data
+       Z <- form_Z(1L, scale = F)
+       
+       
+       ## get the cross-covariance matrices
+       X <- sh_pars_mats(theta)
+       C <- X$CY + X$Co
+       cholC <- chol(C)
+       
+       
+       ## loglik
+       loglik <- -(-0.5 * nrow(Z) * log(2 * pi) 
+                   -0.5 * determinant(C, logarithm = T)$modulus 
+                   -0.5 * t(Z) %*% chol2inv(cholC) %*% Z) %>% as.numeric()
+       
+       return(loglik)
+       
+ 
+  }     
+}
+```
+
+
+
+Finally, estimate the parameters
+
+```{r}
+## set shift == T
+
+
+
+optim_sh_par_est <- optim(par = c(0.5, -1, 1/95.88, 0.6, 1.6, -0.5, 
+              0.019, 69.66/100, 6.95, 67191/10000),
+      fn = logLik_sh_pars_model,
+      shift = T,
+      control = list(trace = 6, maxit = 3000))
+
+# kappa <- 1/range; range0 = 95.88
+```
+
+
+```{r}
+#save(optim_sh_par_est, "./Results/sh_pars_est_results.rda")
+```
+
+
+
+```{r}
+print(paste0("log-like value of the shift parsimouious model is ", -optim_est_sh_pars$value))
+
+
+print(paste0("AIC is ", optim_sh_par_est$value + 2 * length(optim_sh_par_est$par)))
+```
+
+
+
+Finally, cokrig and cross-validation
+```{r}
+theta_lk <- optim_sh_par_est$par
+theta_lk[8] <- theta_lk[8] * 100
+theta_lk[10] <- theta_lk[10] * 10000
+
+X <- sh_pars_mats(theta_lk)
+X$Z
+
+
+
+# loop over each obs
+
+pred_sh_pars <- foreach(i = 1:m1, .combine = "rbind") %do% {
   
-  
-  ## convert theta[8], and theta[10] back on original scale
-  
-  
-  ## get the data
-  
-  
-  
-  ## get the cross-covariance matrices
-  
-  
-  
-  ## loglik
-  
-  
-  
-  
-  
+  X <- sh_pars_mats(theta_lk)
+  cbind(cokrig(X, i = c(i, m1 + i)), model_num = 1)
   
 }
+
+
+
+pred_sh_pars <- foreach(i = 1:m1,.combine = "rbind") %do% {
+                X <- sh_pars_mats(theta = theta_lk)
+                cbind(cokrige(X=X,i=c(i,i+m1)),
+                              model_num = 1)}
+```
+
+
+## Processing the results
+```{r}
+# put the weather into long format, adding more colums
+weather_long <- mutate(weather, loc_num = 1:nrow(weather)) %>% 
+  mutate(sum_D = apply(Dobs, 1, function(x) sum(sort(x)[1:2]))) %>%
+  gather(key = "process", value = "z", temperature, pressure, convert = T)
+
+weather_long2 <- mutate(weather, loc_num = 1:nrow(weather)) %>% 
+  gather(key = "process", value = "z", temperature, pressure, convert = T)
+
+
+head(weather_long2)
+tail(weather_long2)
+```
+
+
+```{r}
+
+
 
 
 ```
