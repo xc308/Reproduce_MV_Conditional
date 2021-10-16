@@ -61,8 +61,3 @@ mini_iris2 %>% gather(key = "attr", value = "measure",
 
 
 
-
-
-
-
-
