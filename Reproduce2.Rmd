@@ -444,80 +444,6 @@ We then add these two together to obtain the matrix $\textrm{cov}((\Yvec_1^\T,\Y
 If `whole_mesh` is `TRUE`, then the process covariance matrix is evaluated over the entire mesh (used for cokriging at unobserved locations).
 
 
-```{r}
-str(h)  # num [1:4289041, 1:2]
-
-source("bisq_fn(2d_B).R")
-
-if (model_num %in% c(3, 4, 7, 8)) {
-  B <- theta[9] * bisq_B(h, delta = theta[11:12], r =  theta[10], area = Area, 
-                         n1 = n1, n2 = n2)  #  num [1:2071, 1:2071]  proc lvl
-}
-
-str(C1)  # @ Dim     : int [1:2] 157 2071
-
-C1B <- C1 %*% B  # obs * proc %*% proc * proc = obs * proc
-```
-
-
-```{r}
-## Form matrices (scaled pressure)
-
-source("make_cov_fn.R")
-
-# obs level 157
-C11 <- makeC(D = Dobs_vec, Var = theta[3], Kappa = theta[5], nu = theta[7])  # obs
-C2_1 <- makeC(D = Dobs_vec, Var = theta[4], Kappa = theta[6], nu = theta[8]) # obs
-
-
-if (Model_num %in% c(3, 4, 7, 8) | whole_mesh == T) {
-  C11_proc <- makeC(Dvec, Var = theta[3], Kappa = theta[5], nu = theta[7])
-  C21 <- C1B %*% C11_proc %*% t(C1)    # obs * obs
-  C12 <- t(C21)
-  C22 <- C2_1 + forceSymmetric(C1B %*% forceSymmetric(C11_proc) %*% t(C1B))
-} else {
-  C21 <- C12 <- C11 * theta[9]
-  C22 <- C2_1 + C11 * theta[9]^2
-}
-
-
-# grid level 2071
-if (whole_mesh == T) {
-  C11 <- C11_proc
-  C2_1_proc <- makeC(Dvec, Var = theta[4], Kappa = theta[6], nu = theta[8]) 
-  C21 <- B %*% C11  # differentiate btw C21 and C12
-  C12 <- t(C21)
-  C22 <- C2_1_proc + crossprod(chol(C11) %*% t(B))
-}
-
-
-
-## Form matrices (Unscaled pressure)
-C22_true <- ifelse(Model_num < 5, p_scale^2, 1) * C22
-C11_true <- ifelse(Model_num > 4, p_scale^2, 1) * C11
-C12_true <- C12 * p_scale
-C21_true <- C21 * p_scale
-
-CY_true <- rbind(cbind(C11_true, C12_true), cbind(C21_true, C22_true)) %>% as("dgeMatrix")
-
-
-# ref
-#m1 <- m2 <- nrow(weather)        # Numb of obs of Y1, Y2
-#m  <- m1 + m2                    # total numb of obs
-#I_m1 <- diag(m1)                 # Identity matrix of m1 by m1
-
-I_m1 <- diag(m1)
-Co_true <- bdiag(ifelse(model_num < 5, 1, p_scale^2) * theta[1] * I_m1, 
-      ifelse(model_num < 5, p_scale^2, 1) * theta[2] * I_m1)   
-        # only scale theta[2],as it's related to press
-
-if (whole_mesh == T) t(C) %*% Co_true %*% C   # proc level
-
-list(CY = CY_true, Co = Co_true, Z = form_Z(model_num, scale = F))
-
-```
-
-
 
 ```{r} 
 # ref
@@ -535,75 +461,77 @@ str(mesh_locs)
 
 
 ```{r}
-# now put above into one function
 construct_mat <- function(theta, model_num, whole_mesh = F) {
   
   B <- theta[9] * Diagonal(n1)
   
-  
-  if (model_num %in% c(3, 4, 7, 8)) {
-    str(h)  # num [1:4289041, 1:2]
-
+  if(model_num %in% c(3, 4, 7, 8)) {
     source("bisq_fn(2d_B).R")
-    B <- theta[9] * bisq_B(h, delta = theta[11:12], r =  theta[10],area = Area,
-                           n1 = n1, n2 = n2)  #  num [1:2071, 1:2071]  proc lvl
-  }
+    B <- theta[9] * bisq_B(h = h, delta = theta[11:12],
+                           r = theta[10],
+                           area = Area,
+                           n1 = n1,
+                           n2 = n2)
     
-  str(C1)  # @ Dim     : int [1:2] 157 2071
-  C1B <- C1 %*% B  # obs * proc %*% proc * proc = obs * proc
+    #B <- bisquare_B(h1 = h[, 1], h2 = h[, 2], delta = theta[11:12], r = theta[10],n1 = n1, n2 = n2)
+    
+ 
+  }
+  
+  C1B <- C1 %*% B  # link obs with proc
   
   
+  ## Form matrics (scaled pressure var already)
+  C11 <- makeC(D = Dobs_vec, Var = theta[3], Kappa = theta[5], nu = theta[7])
+  C2_1 <- makeC(D = Dobs_vec, Var = theta[4], Kappa = theta[6], nu = theta[8])
   
-  ## Form matrices (scaled pressure)
-  source("make_cov_fn.R")
-  
-  
-  # obs level 157
-  C11 <- makeC(D = Dobs_vec, Var = theta[3], Kappa = theta[5], nu = theta[7])  # obs
-  C2_1 <- makeC(D = Dobs_vec, Var = theta[4], Kappa = theta[6], nu = theta[8]) # obs
-  
-      # need to link btw obs and proc  
   if (model_num %in% c(3, 4, 7, 8) | whole_mesh == T) {
     C11_proc <- makeC(D = Dvec, Var = theta[3], Kappa = theta[5], nu = theta[7])
-    C21 <- C1B %*% (C11_proc %*% t(C1))   # obs * obs
-    C12 <- t(C21)
+    C12 <- (C1 %*% C11_proc) %*% t(C1B)
+    C21 <- t(C12)
     C22 <- C2_1 + forceSymmetric(C1B %*% forceSymmetric(C11_proc) %*% t(C1B))
   } else {
-    C21 <- C12 <- theta[9] * C11
-    C22 <- C2_1 + theta[9]^2 * C11 
+    C12 <- C21 <- C11 * theta[9]
+    C22 <- C2_1 + C11 * theta[9]^2
   }
   
   
-  # grid level 2071
-  # no need to link btw obs and proc
   if (whole_mesh == T) {
-    C11 <- C11_proc       # proc lvl
+    C11 <- C11_proc
     C2_1 <- makeC(D = Dvec, Var = theta[4], Kappa = theta[6], nu = theta[8])
-    C21 <- B %*% C11      # proc lvl, differentiate btw C21 and C12
-    C12 <- t(C21)
-    C22 <- C2_1 + crossprod(chol(C11) %*% t(B))
+    C12 <- C11_proc %*% B
+    C21 <- t(C12)
+    C22 <- C2_1 + crossprod(chol(C11_proc) %*% t(B))
+  } 
+  
+  
+  # Form matrices (unscaled pressure)
+  C11_true <- ifelse(model_num < 5, 1, p_scale^2) * C11
+  C22_true <- ifelse(model_num < 5, p_scale^2, 1) * C22
+  C12_true <- p_scale * C12
+  C21_true <- p_scale * C21
+
+  CY_true <- rbind(cbind(C11_true, C12_true), cbind(C21_true, C22_true)) %>% as("dgeMatrix")
+  
+  
+  Imat <- function(n) {
+    return(sparseMatrix(i = 1:n, j = 1:n, x = 1))
+  } 
+  
+  I_m1 <- Imat(m1)
+  Co11_true <- ifelse(model_num < 5, 1, p_scale^2) * theta[1] * I_m1
+  Co22_true <- ifelse(model_num < 5, p_scale^2, 1) * theta[2] * I_m1
+  
+  Co_true <- bdiag(Co11_true, Co22_true)
+  
+  
+  if (whole_mesh == T) {
+    Co_true <- t(C) %*% Co_true %*% C
   }
   
-  
-  ## Form matrices (Unscaled pressure)
-  C22_true <- ifelse(model_num < 5, p_scale^2, 1) * C22
-  C11_true <- ifelse(model_num > 4, p_scale^2, 1) * C11
-  C12_true <- C12 * p_scale
-  C21_true <- C21 * p_scale
-  
-  CY_true <- rbind(cbind(C11_true, C12_true), cbind(C21_true, C22_true)) %>% as("dgeMatrix")
-
-  
-  ## So, obs level
-  I_m1 <- Imat(m1)  # Imat <- function(n) sparseMatrix(i = 1:n, j = 1:n, x = 1)
-  Co_true <- bdiag(ifelse(model_num < 5, 1, p_scale^2) * theta[1] * I_m1, 
-                   ifelse(model_num < 5, p_scale^2, 1) * theta[2] * I_m1)   
-        # only scale theta[2],as it's related to press
-
-  if (whole_mesh == T) t(C) %*% Co_true %*% C   # proc level
-
   list(CY = CY_true, Co = Co_true, Z = form_Z(model_num, scale = F))
-} 
+  
+}
 
 ```
 
@@ -661,9 +589,9 @@ Loglik_Model <- function(theta, model_num, i = NULL) {
     ## Evaluate log-lik function
     cholYo <- chol(CY + Co)
     log_lik <- -(-0.5 * nrow(Z) * log(2 * pi) 
-    - 0.5 * logdet(cholYo) 
-    - 0.5 * t(Z) %*% chol2inv(cholYo) %*% Z) %>% as.numeric()
-    
+                 - 0.5 * logdet(cholYo) 
+                 - 0.5 * t(Z) %*% chol2inv(cholYo) %*% Z) %>% as.numeric()
+   
     return(log_lik)
   }
 }
@@ -738,6 +666,7 @@ fit_all_models <- function(i) {
 
 ## try out using model1
 fit.Model1 <- optim_loglik(par = c(0.01, 1, 5, 15, 0.01, 0.01, 0.6, 1.5), model_num = 1, i = NULL)
+
 fit.Model2 <- optim_loglik(par = c(fit.Model1$par, -0.2), model_num = 2, i = NULL)
 
 fit.Model3 <- optim_loglik(par = c(fit.Model2$par, 0.1), model_num = 3, i = NULL)
@@ -757,8 +686,6 @@ if (LK_analysis == 1) {
 } else {
   load(system.file("extdata/temp_pressure", "LK.fit.rda", package = "bicon"))
 }
-
-
 
 
 # results from option + : π†¥øœ∑´®åß∂ƒ©˙∆˚¬…Ω≈ç√∫~ µ≤≥÷¡€#¢¢∞¶•ªº <- ≠
@@ -875,7 +802,8 @@ cokrig <- function(X, i = NULL) {
     Z <- X$Z
     Q <- chol2inv(chol(C %*% Cz %*% t(C))) %>% as("dgeMatrix")  # Cz inverse
     mu_pred <- (Cz %*% t(C) %*% Q %*% Z) %>% as.numeric()
-    var_pred <- (diag(Cz) - Cz %*% t(C) %*% Q %*% C %*% Cz) %>% as.numeric()   
+    var_pred <- diag(Cz - Cz %*% t(C) %*% Q %*% C %*% Cz) %>% as.numeric()
+    #var_pred <- diag(SS - SS %*% t(C) %*% Q %*% C %*% SS) %*% as.numeric()
     # 2nd part is 1*1; 1st part is C00 also 1*1
     
     data.frame(mu_pred = mu_pred, var_pred = var_pred)
@@ -887,7 +815,7 @@ cokrig <- function(X, i = NULL) {
     Cz_inv <- chol2inv(chol(Cz[-i, -i])) %>% as("dgeMatrix")
     mu_pred <- Cz[i, -i] %*% Cz_inv %*% Z[-i, , drop = F] %>% as.numeric()
     # Cz[i, -i] is [co1' co2']
-    var_pred <- (diag(Cz[i, i]) - Cz[i, -i] %*% Cz_inv %*% Cz[-i, i]) %>% as.numeric()
+    var_pred <- diag(Cz[i, i] - Cz[i, -i] %*% Cz_inv %*% Cz[-i, i]) %>% as.numeric()
     
     data.frame(mu_pred = mu_pred, var_pred = var_pred, 
                Z = X$Z[i, ], i = i) # extract out the ith removed one

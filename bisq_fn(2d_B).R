@@ -13,8 +13,9 @@ bisq_2D <- function(h, delta = c(0, 0), r = 1, A = 1) {
 }
 
 
-bisq_B <- function(h, delta = c(0, 0), r = 1, A = 1, area = 1, n1 = 10L, n2 = 10L) {
-  BA <- bisq_2D(h, delta, r, A) * area
+bisq_B <- function(h, delta = c(0, 0), r = 1, A = 1, 
+                   area = rep(1, length(h[,1])), n1 = 10L, n2 = 10L) {
+  BA <- area * bisq_2D(h = h, delta = delta, r = r, A = A) 
   matrix(BA, n2, n1, byrow = T)
 }
 
@@ -37,8 +38,17 @@ bisq_B <- function(h, delta = c(0, 0), r = 1, A = 1, area = 1, n1 = 10L, n2 = 10
 #length(which((1 - (y / r)^2)^2 * (y < r) != 0)) # [1] 609276
 
 
-#bisq <- bisq_2D(hvec = h, r = 160)
+#bisq <- bisq_2D(h = h, r = 160)
 #str(bisq)  # num [1:4289041]
+#area <- rep(1, length(h[,1]))
+#str(area)
+#BA <- area*bisq
+#BA2 <- bisq * area
+#str(BA)
+#str(BA2)
+
+#b <- bisq_B(h = h, r = 160, n1 = n1, n2 = n2)
+#str(b)  # num [1:2071, 1:2071]
 
 #bisq_B <- bisq * Area
 #str(bisq_B)  # num [1:4289041]
