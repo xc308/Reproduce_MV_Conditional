@@ -38,10 +38,9 @@ log_det <- function(U) {
   return(2 * sum(log(diagU)))
 }
 
-Sig <- sparseMatrix(i = c(1, 1, 2, 2), j = c(1, 2, 1, 2), x = c(1, 2, 2, 1))
-Sig
-log_det(chol(Sig))
-
+#Sig <- sparseMatrix(i = c(1, 1, 2, 2), j = c(1, 2, 1, 2), x = c(1, 2, 2, 1))
+#Sig
+#log_det(chol(Sig))
 
 
 
