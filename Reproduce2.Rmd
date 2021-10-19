@@ -682,6 +682,10 @@ fit.Model4 <- optim_loglik(par = c(fit.Model3$par, 0, 0), model_num = 4, i = NUL
 
 
 str(fit.Model3)
+
+save(fit.Model1, file = "./Results/fit.Model1.rda")
+save(fit.Model2, file = "./Results/fit.Model2.rda")
+save(fit.Model3, file = "./Results/fit.Model3.rda")
 ```
 
 ## Fit all models above to data
