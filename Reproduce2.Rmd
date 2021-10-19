@@ -177,11 +177,17 @@ A function `form_Z` extract $Z_1$ and $Z_2$ and concatenate them into one long v
 Also define `m1` as the number of observations of $Y_1$, `m2` as the number of observations of $Y_2$ and `m` as the total number of observations.
 
 ```{r}
+#t <- weather$temperature
+#str(t)  # a vec  num [1:157]
+#t_mat <- matrix(weather$temperature)
+#str(t_mat)  # a matrix num [1:157, 1]
+
+
 form_Z <- function(model_num, scale = T) {
-  Z1 <- weather$temperature
-  Z2 <- weather$pressure
+  Z1 <- matrix(weather$temperature)      # matrix Z1
+  Z2 <- matrix(weather$pressure)
   
-  if (scale) Z2 <- Z2 / p_scale   # scale press
+  if (scale) Z2 <- Z2 / p_scale   # scale pres
   
   if (model_num > 4) {
      temp <- Z1
@@ -276,7 +282,7 @@ Dvec <- as.double(c(D))
 ```{r}
 Dobs <- as.matrix(RFearth2dist(coord = as.matrix(weather[c("lon", "lat")])))
 str(Dobs) # num [1:157, 1:157] 0 697 502 502 532 ..
-Dobs_vec <- as.double(c(Dobs))
+Dobs_vec <- c(Dobs)   # no as.double
 
 ```
 
@@ -351,7 +357,7 @@ Then, with each element we associate an integration weight equal to the area of 
 
 
 ```{r}
-str(mesh_locs)
+str(mesh_locs)        # num [1:2071, 1:2]
 str(mesh_locs[1, ])   # vector
 str(t(mesh_locs) - mesh_locs[1, ])  
 # num [1:2, 1:2071] 0.00 0.00 1.55e+01 
@@ -366,11 +372,11 @@ head(t(t(mesh_locs) - mesh_locs[1, ]))
 
 h <- matrix(0, n1 * n2, ncol = 2)
 Area <- rep(0, n1 * n2)
-for (i in 1:n1) {
-  h[((i - 1) * n1 + 1) : (i * n1), ] <- t(t(mesh_locs) - mesh_locs[i])
+for (i in 1:n2) {
+  h[((i - 1) * n1 + 1) : (i * n1), ] <- t(t(mesh_locs) - mesh_locs[i, ])
   Area[((i - 1) * n1 + 1) : (i * n1) ] <- Area.tess
-
 }
+
 
 str(h) # num [1:4289041, 1:2]
 
@@ -422,7 +428,7 @@ M1(M5): append 4 0's, M2(M6): append 3 0's, M3(M7): append 2 0's;
 append_theta <- function(theta, model_num) {
   if (model_num %in% c(1, 5)) {  # M1 and M5
     theta <- c(theta, rep(0, 4))
-    #theta[10] <- 0.001
+    theta[10] <- 0.001
   } else if (model_num %in% c(2, 6)) {
     theta <- c(theta, rep(0, 3))
     theta[10] <- 0.001
@@ -431,6 +437,7 @@ append_theta <- function(theta, model_num) {
   } 
   theta
 }
+
 ```
 
 
@@ -465,7 +472,7 @@ construct_mat <- function(theta, model_num, whole_mesh = F) {
   
   B <- theta[9] * Diagonal(n1)
   
-  if(model_num %in% c(3, 4, 7, 8)) {
+  if (model_num %in% c(3, 4, 7, 8)) {
     source("bisq_fn(2d_B).R")
     B <- theta[9] * bisq_B(h = h, delta = theta[11:12],
                            r = theta[10],
@@ -477,6 +484,8 @@ construct_mat <- function(theta, model_num, whole_mesh = F) {
   
   C1B <- C1 %*% B  # link obs with proc
   
+  
+  source("make_cov_fn.R")
   
   ## Form matrics (scaled pressure var already)
   C11 <- makeC(D = Dobs_vec, Var = theta[3], Kappa = theta[5], nu = theta[7])
@@ -498,7 +507,8 @@ construct_mat <- function(theta, model_num, whole_mesh = F) {
     C2_1 <- makeC(D = Dvec, Var = theta[4], Kappa = theta[6], nu = theta[8])
     C12 <- C11_proc %*% B
     C21 <- t(C12)
-    C22 <- C2_1 + crossprod(chol(C11_proc) %*% t(B))
+    #C22 <- C2_1 + crossprod(chol(C11_proc) %*% t(B))
+    C22 <- C2_1 + B %*% C11_proc %*% t(B)
   } 
   
   
@@ -512,7 +522,7 @@ construct_mat <- function(theta, model_num, whole_mesh = F) {
   
   
   Imat <- function(n) {
-    return(sparseMatrix(i = 1:n, j = 1:n, x = 1))
+    sparseMatrix(i = 1:n, j = 1:n, x = 1)
   } 
   
   I_m1 <- Imat(m1)
@@ -671,7 +681,7 @@ fit.Model3 <- optim_loglik(par = c(fit.Model2$par, 0.1), model_num = 3, i = NULL
 fit.Model4 <- optim_loglik(par = c(fit.Model3$par, 0, 0), model_num = 4, i = NULL)
 
 
-str(fit.Model4)
+str(fit.Model3)
 ```
 
 ## Fit all models above to data
@@ -687,7 +697,7 @@ if (LK_analysis == 1) {
   load(system.file("extdata/temp_pressure", "LK.fit.rda", package = "bicon"))
 }
 
-str()
+
 
 ```
 
@@ -830,12 +840,18 @@ Now predict at all mesh locations using model 1 and 4
 - then carry out the cokriging and add the mean predictions to the mesh
 ```{r}
 
-X1 <- construct_mat(theta = append_theta(theta = fit_all_data[[1]]$par, model_num = 1),
+X1 <- construct_mat(theta = append_theta(theta = fit.Model1$par, model_num = 1),
                     model_num = 1, whole_mesh = T)
 
-X3 <- construct_mat(theta = append_theta(theta = fit_all_data[[3]]$par, model_num = 3), model_num = 3, whole_mesh = T)
 
-X4 <- construct_mat(theta = append_theta(theta = fit_all_data[[4]]$par, model_num = 4), 
+X2 <- construct_mat(theta = append_theta(theta = fit.Model2$par, model_num = 2),
+                    model_num = 2, whole_mesh = T)
+
+X3 <- construct_mat(theta = append_theta(theta = fit.Model3$par, model_num = 3),
+                    model_num = 3, whole_mesh = T)
+
+X4 <- construct_mat(theta = append_theta(theta = fit.Model4$par, 
+                                         model_num = 4), 
                     model_num = 4, whole_mesh = T)
 
 
@@ -845,43 +861,108 @@ ALL4 <- cokrig(X = X4, i = NULL)
 ```
 
 ```{r}
-## debug cokrig
+# Question
 
-C11_proc <- makeC(D = Dvec, Var = fit_all_data[[4]]$par[3], Kappa = fit_all_data[[4]]$par[5], nu = fit_all_data[[4]]$par[7])
+Cz_3 <- X3$CY + X3$Co
+Cz_obs <- C %*% Cz_3 %*% t(C)
+isSymmetric(Cz_obs)  # [1] TRUE
+chol_Cz3 <- chol(Cz_obs)   # asMethod(object) : matrix is not symmetric [174,200]
+
+Q <- chol2inv(chol(C %*% Cz %*% t(C)))
+
+```
+
+```{r}
+## debug 
+View(makeS)
+
+function (r, var, kappa, nu) 
+{
+  if (nu == 3/2) {
+    S <- Matern32(r, var, kappa)
+  }
+  else if (nu == 1/2) {
+    S <- Matern12(r, var, kappa)
+  }
+  else {
+    svec <- Matern(d = r, scale = var, alpha = kappa, smoothness = nu)
+    S <- matrix(svec, nrow = sqrt(length(r)))
+  }
+  S
+}
+
+
+makeC <- function(D, Var, Kappa, nu) {
+  if (nu == 3/2) {
+    C <- Matern_fn_32(phi = Var, Alpha = Kappa, d = D)
+  } else if (nu == 1/2) {
+    C <- Matern_fn_12(phi = Var, Alpha = Kappa, d = D)
+  } else {
+    C <- Matern_fn(phi = Var, Alpha = Kappa, nu = nu, d = D)
+  }
+  C
+}
+
+
+Matern_fn <- function(phi = 1, Alpha = 1, nu = 0.5, d) {
+  #if (any(d) < 0) 
+  #stop("distance d must be non-neg.")
+  
+  d <- Alpha * d
+  d[d == 0] <- 1e-6   # avoid sending exact 0 to basselK
+  
+  const <- (2^(nu - 1)) * gamma(nu)
+  const <- 1/const
+  
+  X <- phi * const * (d^nu) * besselK(d, nu)  # a vector
+  #return(X)
+  matrix(X, nrow = sqrt(length(X)))
+  
+}
+
+
+
+C11_proc <- makeC(D = Dvec, Var = fit.Model2$par[3], Kappa = fit.Model2$par[5], nu = fit.Model3$par[7])
+
+C11_p <- makeC(D = Dvec, Var = fit_all_data[[2]]$par[3], Kappa = fit_all_data[[2]]$par[5],
+      nu = fit_all_data[[2]]$par[7])
+
+ch_C11p <- chol(C11_p)
 
 isSymmetric(C11_proc) # [1] TRUE
 ch_C11 <- chol(C11_proc)
 
-
-B <- fit_all_data[[4]]$par[9] * bisq_B(h = h, delta = fit_all_data[[4]]$par[11:12],
-                           r = fit_all_data[[4]]$par[10],
-                           area = Area,
-                           n1 = n1,
-                           n2 = n2)
+```
 
 
-t <- ch_C11 %*% t(B)
-crosst <- crossprod(ch_C11 %*% t(B))
+```{r}
+# his fit is fit_all_data; 
+# mine fit_all_data2 and fit.Model2
+
+fit_all_data2[[4]]$par[3]  # [1] 9.769797
+fit_all_data2[[4]]$par[5]  # [1] 0.06807344
+fit_all_data2[[4]]$par[7]  # [1] 13.94636
+
+fit_all_data[[4]]$par[3]   # [1] 9.131846
+fit_all_data[[4]]$par[5]   # [1] 0.007232051
+fit_all_data[[4]]$par[7]   # [1] 0.5613134
 
 
-Cz <- X4$CY + X4$Co
-a <- C %*% Cz %*% t(C)
-isSymmetric(a)  # [1] TRUE
+fit_all_data[[2]]$par[3]   # [1] 6.775386
+fit_all_data[[2]]$par[5]   # [1] 0.01132269
+fit_all_data[[2]]$par[7]   # [1] 0.6020534
 
-eg <- eigen(a, only.values = T)
-all(eg$values > 0) # [1] FALSE
-which(eg$values <= 0)
-ch_a <- chol(a)
-
-str(eg) # [1:314] 
-
-
-a <- chol(C %*% Cz %*% t(C))
-
-
+fit.Model2$par[3]    # [1] 1.045282
+fit.Model2$par[5]    # [1] 0.00785041
+fit.Model2$par[7]    # [1] 5.199892
 
 
 ```
+
+
+
+
+
 
 ## Leave-one-out cross validation
 

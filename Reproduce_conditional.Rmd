@@ -817,20 +817,6 @@ Then we carry out cokriging and add the mean predictions to the mesh.
 remove(construct_mats)
 ```
 
-```{r,message=F}
-append_theta <- function(theta,model_num) {
-  if(model_num %in% c(1,5)) {
-    theta <- c(theta,rep(0,4))
-    theta[10] <- 0.001
-  } else if(model_num %in% c(2,6)) {
-    theta <- c(theta,rep(0,3))
-    theta[10] <- 0.001
-  } else if(model_num %in% c(3,7)) {
-    theta <- c(theta,rep(0,2))
-  }
-  theta
-}
-```
 
 
 ```{r, message=F}
@@ -839,6 +825,7 @@ X1 <- construct_mats(theta = append_theta(fit_all_data[[1]]$par, model_num = 1),
                      model_num = 1, whole_mesh = T)
 X4 <- construct_mats(theta = append_theta(fit_all_data[[4]]$par, model_num = 4),
                      model_num = 4, whole_mesh = T)
+
 
 ALL1 <- cokrig(X = X1, i = NULL)
 ALL4 <- cokrig(X = X4, i = NULL)

@@ -21,6 +21,8 @@ bisq_B <- function(h, delta = c(0, 0), r = 1, A = 1,
 
 
 
+
+
 # TRY out
 
 #str(h) # num [1:4289041, 1:2]

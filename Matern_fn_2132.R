@@ -51,8 +51,14 @@ Matern_fn <- function(phi = 1, Alpha = 1, nu = 0.5, d) {
   const <- 1/const
   
   X <- phi * const * (d^nu) * besselK(d, nu)  # a vector
+  #return(X)
   matrix(X, nrow = sqrt(length(X)))
   
 }
+
+#X <- Matern_fn(d = Dvec)
+#str(X)
+#sqrt(length(X)) # [1] 2071
+
 
 

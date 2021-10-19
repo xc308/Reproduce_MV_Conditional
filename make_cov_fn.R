@@ -25,26 +25,3 @@ makeC <- function(D, Var, Kappa, nu) {
 }
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
