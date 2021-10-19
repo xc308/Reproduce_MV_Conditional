@@ -868,7 +868,6 @@ Cz_3 <- X3$CY + X3$Co
 isSymmetric(Cz_3)  # [1] TRUE
 
 
-
 Cz_obs <- C %*% Cz_3 %*% t(C)
 str(Cz_obs)
 isSymmetric(Cz_obs)  # [1] TRUE
