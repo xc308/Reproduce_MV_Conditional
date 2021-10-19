@@ -507,8 +507,8 @@ construct_mat <- function(theta, model_num, whole_mesh = F) {
     C2_1 <- makeC(D = Dvec, Var = theta[4], Kappa = theta[6], nu = theta[8])
     C12 <- C11_proc %*% B
     C21 <- t(C12)
-    #C22 <- C2_1 + crossprod(chol(C11_proc) %*% t(B))
-    C22 <- C2_1 + B %*% C11_proc %*% t(B)
+    C22 <- C2_1 + crossprod(chol(C11_proc) %*% t(B))
+    #C22 <- C2_1 + B %*% C11_proc %*% t(B)
   } 
   
   
@@ -868,9 +868,21 @@ ALL4 <- cokrig(X = X4, i = NULL)
 # Question
 
 Cz_3 <- X3$CY + X3$Co
+isSymmetric(Cz_3)  # [1] TRUE
+
+
+
 Cz_obs <- C %*% Cz_3 %*% t(C)
+str(Cz_obs)
 isSymmetric(Cz_obs)  # [1] TRUE
 chol_Cz3 <- chol(Cz_obs)   # asMethod(object) : matrix is not symmetric [174,200]
+
+ei_Czobs <- eigen(Cz_obs, only.values = T)
+all(ei_Czobs$values > 0)  # [1] FALSE
+all(ei_Czobs$values >= 0)  # [1] FALSE
+which(ei_Czobs$values < 0)  # [1] 309 310 311 312 313 314
+
+le
 
 Q <- chol2inv(chol(C %*% Cz %*% t(C)))
 
@@ -913,7 +925,7 @@ Matern_fn <- function(phi = 1, Alpha = 1, nu = 0.5, d) {
   #stop("distance d must be non-neg.")
   
   d <- Alpha * d
-  d[d == 0] <- 1e-6   # avoid sending exact 0 to basselK
+  d[d == 0] <- 1e-10   # avoid sending exact 0 to basselK
   
   const <- (2^(nu - 1)) * gamma(nu)
   const <- 1/const
