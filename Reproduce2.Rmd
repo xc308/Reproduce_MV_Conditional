@@ -1171,3 +1171,16 @@ tail(weather_long2)
 
 
 
+## Ref:
+- Push Very large file onto git repo: https://stackoverflow.com/questions/2100907/how-to-remove-delete-a-large-file-from-commit-history-in-the-git-repository
+
+git filter-branch -f --index-filter "git rm -rf --cached --ignore-unmatch FOLDERNAME" -- --all
+
+rm -rf .git/refs/original/
+git reflog expire --expire=now --all
+git gc --prune=now
+git gc --aggressive --prune=now
+
+git push --all --force
+
+
