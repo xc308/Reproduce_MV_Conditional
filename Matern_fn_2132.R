@@ -45,7 +45,7 @@ Matern_fn <- function(phi = 1, Alpha = 1, nu = 0.5, d) {
   #stop("distance d must be non-neg.")
   
   d <- Alpha * d
-  d[d == 0] <- 1e-6   # avoid sending exact 0 to basselK
+  d[d == 0] <- 1e-10   # avoid sending exact 0 to basselK
   
   const <- (2^(nu - 1)) * gamma(nu)
   const <- 1/const
