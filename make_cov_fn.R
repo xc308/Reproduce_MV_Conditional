@@ -20,6 +20,7 @@ makeC <- function(D, Var, Kappa, nu) {
     C <- Matern_fn_12(phi = Var, Alpha = Kappa, d = D)
   } else {
     C <- Matern_fn(phi = Var, Alpha = Kappa, nu = nu, d = D)
+    #C <- Matern(d = D, phi = Var, alpha = Kappa, nu = nu)
   }
   C
 }
