@@ -827,8 +827,19 @@ remove(construct_mats)
 
 X1 <- construct_mats(theta = append_theta(fit_all_data3[[1]]$par, model_num = 1),
                      model_num = 1, whole_mesh = T)
+
+X1 <- construct_mats(theta = append_theta(fit_all_data4[[1]]$par, model_num = 1),
+                     model_num = 1, whole_mesh = T)
+
+
 X4 <- construct_mats(theta = append_theta(fit_all_data3[[4]]$par, model_num = 4),
                      model_num = 4, whole_mesh = T)
+
+
+X4 <- construct_mats(theta = append_theta(fit_all_data4[[4]]$par, model_num = 4),
+                     model_num = 4, whole_mesh = T)
+
+
 
 
 ALL1 <- cokrig(X = X1, i = NULL)
