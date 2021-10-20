@@ -410,7 +410,7 @@ str(idx)  # int [1:157] 9 10 11 12 13 14 15 16 17 18 ...
 C1 <- sparseMatrix(i = 1:m1, j = idx, x = 1, dims = c(m1, n1)) # incidence matrix
 C <- bdiag(C1, C1)  # total incidence matrix
 
-str(C)
+str(C)   # @ Dim     : int [1:2] 314 4142
 ```
 
 
@@ -467,6 +467,8 @@ str(mesh_locs)
 ```
 
 
+
+
 ```{r}
 construct_mat <- function(theta, model_num, whole_mesh = F) {
   
@@ -490,6 +492,8 @@ construct_mat <- function(theta, model_num, whole_mesh = F) {
   ## Form matrics (scaled pressure var already)
   C11 <- makeC(D = Dobs_vec, Var = theta[3], Kappa = theta[5], nu = theta[7])
   C2_1 <- makeC(D = Dobs_vec, Var = theta[4], Kappa = theta[6], nu = theta[8])
+  
+
   
   if (model_num %in% c(3, 4, 7, 8) | whole_mesh == T) {
     C11_proc <- makeC(D = Dvec, Var = theta[3], Kappa = theta[5], nu = theta[7])
@@ -960,15 +964,29 @@ fit_all_data[[4]]$par[5]   # [1] 0.007232051
 fit_all_data[[4]]$par[7]   # [1] 0.5613134
 
 
+fit_all_data3[[4]]$par[3]  # 7.317705
+fit_all_data3[[4]]$par[5]  # 0.08031588
+
+fit_all_data4[[4]]$par[3]  #  7.317705
+fit_all_data4[[4]]$par[5]  #  0.08031588
+
+
 fit_all_data[[2]]$par[3]   # [1] 6.775386
 fit_all_data[[2]]$par[5]   # [1] 0.01132269
 fit_all_data[[2]]$par[7]   # [1] 0.6020534
+
+fit_all_data2[[2]]$par[3]  # [1] 1.045282
+fit_all_data2[[2]]$par[5]  # [1] 0.007850412
+fit_all_data2[[2]]$par[7]  # [1] 5.199892
+
 
 fit.Model2$par[3]    # [1] 1.045282
 fit.Model2$par[5]    # [1] 0.00785041
 fit.Model2$par[7]    # [1] 5.199892
 
 
+
+fit_all_data3[[2]]$par[3]
 ```
 
 
