@@ -158,7 +158,7 @@ form_Z <- function(model_num, scale = T){
   Z1 <- matrix(weather$temperature)
   Z2 <- matrix(weather$pressure)
   
-  if(scale) Z2 <- Z2 / p_scale   # scale pressure
+  if(scale) Z2 <- Z2 / P_scale   # scale pressure
   
   if(model_num > 4) {
     temp <- Z1   # move temperature values out of Z1 name into temp 
@@ -218,6 +218,7 @@ d <- RFearth2dist(as.matrix(mesh_locs)) # transform coods from earth (ellipsoid)
 D <- as.matrix(d)
 Dvec <- as.double(c(D))  
 
+str(Dvec)
 ```
 
 
@@ -269,7 +270,7 @@ Mesh <- initFEbasis(p = mesh_locs,   # n * 2 matrix of vertex locations
             t = mesh$graph$tv,       # n * 3 matrix of triangulation; each row identifies which row of p make up tri
             K = mesh$graph$vv)       # connectivity matrix 
 
-str(Mesh)
+#str(Mesh)
 
 #head(str(Mesh))
 ```
@@ -696,6 +697,7 @@ fit_all_models <- function(i) {
 try out using model1
 ```{r}
 fit.Model1  <- optim_loglik(par = c(0.01, 1, 5, 15, 0.01, 0.01, 0.6, 1.5), model_num = 1, i = NULL)
+
 fit.Model2 <- optim_loglik(c(fit.Model1$par, -0.2), model_num = 2, i = NULL)
 fit.Model3 <- optim_loglik(c(fit.Model2$par, 0.1), model_num = 3, i = NULL)
 fit.Model4 <- optim_loglik(c(fit.Model3$par, 0, 0), model_num = 4, i)
@@ -722,6 +724,8 @@ if (LK_analysis = 1) {
 
 ```{r}
 fit_all_data <- fit_all_models(NULL)
+fit_all_data3 <- fit_all_models(NULL)  # using his code in this file
+fit_all_data4 <- fit_all_models(NULL)  # using my code in this file
 ```
 
 ```{r}
@@ -821,9 +825,9 @@ remove(construct_mats)
 
 ```{r, message=F}
 
-X1 <- construct_mats(theta = append_theta(fit_all_data[[1]]$par, model_num = 1),
+X1 <- construct_mats(theta = append_theta(fit_all_data3[[1]]$par, model_num = 1),
                      model_num = 1, whole_mesh = T)
-X4 <- construct_mats(theta = append_theta(fit_all_data[[4]]$par, model_num = 4),
+X4 <- construct_mats(theta = append_theta(fit_all_data3[[4]]$par, model_num = 4),
                      model_num = 4, whole_mesh = T)
 
 
@@ -831,8 +835,17 @@ ALL1 <- cokrig(X = X1, i = NULL)
 ALL4 <- cokrig(X = X4, i = NULL)
 ```
 
+```{r}
 
+## fit model individually, wrong
 
+#X1 <- construct_mats(theta = append_theta(fit.Model1$par, model_num = 1),
+                     #model_num = 1, whole_mesh = T)
+
+#X3 <- construct_mats(theta = append_theta(fit.Model3$par, model_num = 3),
+                    # model_num = 3, whole_mesh = T)
+
+```
 
 ```{r}
 
