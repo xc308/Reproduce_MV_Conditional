@@ -702,11 +702,13 @@ if (LK_analysis == 1) {
   load(system.file("extdata/temp_pressure", "LK.fit.rda", package = "bicon"))
 }
 
-
-
 ```
 
 
+```{r}
+fit_all_data5 <- fit_all_models(i = NULL)
+
+```
 
 ```{r}
 str(fit_all_data)
@@ -845,19 +847,31 @@ Now predict at all mesh locations using model 1 and 4
 - then carry out the cokriging and add the mean predictions to the mesh
 ```{r}
 
-X1 <- construct_mat(theta = append_theta(theta = fit.Model1$par, model_num = 1),
-                    model_num = 1, whole_mesh = T)
+#X1 <- construct_mat(theta = append_theta(theta = fit.Model1$par, model_num = 1),
+#                    model_num = 1, whole_mesh = T)
+
+X1 <- construct_mat(theta = append_theta(theta = fit_all_data5[[1]]$par, model_num = 1), model_num = 1, whole_mesh = T)
 
 
-X2 <- construct_mat(theta = append_theta(theta = fit.Model2$par, model_num = 2),
-                    model_num = 2, whole_mesh = T)
+#X2 <- construct_mat(theta = append_theta(theta = fit.Model2$par, model_num = 2),
+#                   model_num = 2, whole_mesh = T)
 
-X3 <- construct_mat(theta = append_theta(theta = fit.Model3$par, model_num = 3),
-                    model_num = 3, whole_mesh = T)
+X2 <- construct_mat(theta = append_theta(theta = fit_all_data5[[2]]$par, model_num = 2), model_num = 2, whole_mesh = T)
 
-X4 <- construct_mat(theta = append_theta(theta = fit.Model4$par, 
-                                         model_num = 4), 
-                    model_num = 4, whole_mesh = T)
+
+#X3 <- construct_mat(theta = append_theta(theta = fit.Model3$par, model_num = 3),
+#                    model_num = 3, whole_mesh = T)
+
+
+X3 <- construct_mat(theta = append_theta(theta = fit_all_data5[[3]]$par, model_num = 3), model_num = 3, whole_mesh = T)
+
+
+#X4 <- construct_mat(theta = append_theta(theta = fit.Model4$par,                                         model_num = 4), 
+#                    model_num = 4, whole_mesh = T)
+
+
+X4 <- construct_mat(theta = append_theta(theta = fit_all_data5[[4]]$par, model_num = 4), model_num = 4, whole_mesh = T)
+
 
 
 ALL1 <- cokrig(X = X1, i = NULL)
@@ -952,7 +966,7 @@ ch_C11 <- chol(C11_proc)
 
 
 ```{r}
-# his fit is fit_all_data; 
+# his fit is fit_all_data; fit_all_data3
 # mine fit_all_data2 and fit.Model2
 
 fit_all_data2[[4]]$par[3]  # [1] 9.769797
@@ -966,9 +980,21 @@ fit_all_data[[4]]$par[7]   # [1] 0.5613134
 
 fit_all_data3[[4]]$par[3]  # 7.317705
 fit_all_data3[[4]]$par[5]  # 0.08031588
+fit_all_data3[[4]]$par[7]  # 17.2147
+
 
 fit_all_data4[[4]]$par[3]  #  7.317705
 fit_all_data4[[4]]$par[5]  #  0.08031588
+fit_all_data4[[4]]$par[7]  #  17.2147
+
+fit_all_data5[[4]]$par[3] # 9.769797
+fit_all_data5[[4]]$par[5] # 0.06807344
+fit_all_data5[[4]]$par[7] # 13.94636
+
+
+Y <- lapply(fit_all_data5, function(x) x$par[7])
+Y
+
 
 
 fit_all_data[[2]]$par[3]   # [1] 6.775386
@@ -985,8 +1011,13 @@ fit.Model2$par[5]    # [1] 0.00785041
 fit.Model2$par[7]    # [1] 5.199892
 
 
+# his code in Rp_con.Rmd
+fit_all_data3[[2]]$par[3]  # 1.045282
+fit_all_data3[[2]]$par[5]  # 0.007850412
+fit_all_data3[[2]]$par[7]  # 5.199892
 
-fit_all_data3[[2]]$par[3]
+
+
 ```
 
 
