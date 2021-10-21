@@ -366,8 +366,6 @@ append_theta <- function(theta,model_num) {
 ```
 
 
-the <- c(0, 3, 2.3)
-c(the, rep(0, 4))
 
 
 Next, we require a function that, given the parameter vector `theta` and the model number `model_num`, returns the required matrices and vectors used in fitting. These are the matrices
@@ -700,10 +698,10 @@ fit.Model1  <- optim_loglik(par = c(0.01, 1, 5, 15, 0.01, 0.01, 0.6, 1.5), model
 
 fit.Model2 <- optim_loglik(c(fit.Model1$par, -0.2), model_num = 2, i = NULL)
 fit.Model3 <- optim_loglik(c(fit.Model2$par, 0.1), model_num = 3, i = NULL)
-fit.Model4 <- optim_loglik(c(fit.Model3$par, 0, 0), model_num = 4, i)
+fit.Model4 <- optim_loglik(c(fit.Model3$par, 0, 0), model_num = 4, i = NULL)
 
 ```
-
+ 
 
 
 With all functions in place we now call `fit_all_data <- fit_all_models(NULL)`. 
@@ -818,7 +816,7 @@ First we construct the required matrices and store them in `X1` and `X4`.
 Then we carry out cokriging and add the mean predictions to the mesh.
 
 ```{r}
-remove(construct_mats)
+lapply(fit_all_data3, function(x) x$par[1:8])
 ```
 
 
@@ -841,6 +839,23 @@ X4 <- construct_mats(theta = append_theta(fit_all_data4[[4]]$par, model_num = 4)
 
 
 
+# fail
+X3 <- construct_mats(theta = append_theta(fit_all_data3[[3]]$par, model_num = 3),
+                     model_num = 3, whole_mesh = T)
+
+X3 <- construct_mats(theta = append_theta(fit_all_data4[[3]]$par, model_num = 3),
+                     model_num = 3, whole_mesh = T)
+
+
+# fail
+X2 <- construct_mats(theta = append_theta(fit_all_data3[[2]]$par, model_num = 2),
+                     model_num = 2, whole_mesh = T)
+
+
+X2 <- construct_mats(theta = append_theta(fit_all_data4[[2]]$par, model_num = 2),
+                     model_num = 2, whole_mesh = T)
+
+
 
 ALL1 <- cokrig(X = X1, i = NULL)
 ALL4 <- cokrig(X = X4, i = NULL)
@@ -848,15 +863,51 @@ ALL4 <- cokrig(X = X4, i = NULL)
 
 ```{r}
 
-## fit model individually, wrong
+## fit model individually
 
-#X1 <- construct_mats(theta = append_theta(fit.Model1$par, model_num = 1),
-                     #model_num = 1, whole_mesh = T)
+X1 <- construct_mats(theta = append_theta(fit.Model1$par, model_num = 1),
+                     model_num = 1, whole_mesh = T)
 
-#X3 <- construct_mats(theta = append_theta(fit.Model3$par, model_num = 3),
-                    # model_num = 3, whole_mesh = T)
+X2 <- construct_mats(theta = append_theta(fit.Model2$par, model_num = 2),
+                     model_num = 2, whole_mesh = T)  # not pd
+
+
+X3 <- construct_mats(theta = append_theta(fit.Model3$par, model_num = 3),
+                    model_num = 3, whole_mesh = T)   # not pd
+
+
+X4 <- construct_mats(theta = append_theta(fit.Model4$par, model_num = 4),
+                    model_num = 4, whole_mesh = T)
+
+
+
+All4 <- cokrig(X = X4, i = NULL)
 
 ```
+
+
+
+```{r}
+# try most original fit 
+X1 <- construct_mats(theta = append_theta(fit_all_data[[1]]$par, model_num = 1),
+                     model_num = 1, whole_mesh = T)
+
+# fail not pd
+X2 <- construct_mats(theta = append_theta(fit_all_data[[2]]$par, model_num = 2),
+                     model_num = 2, whole_mesh = T)
+
+# fail not pd
+X3 <- construct_mats(theta = append_theta(fit_all_data[[3]]$par, model_num = 3),
+                     model_num = 3, whole_mesh = T)
+
+
+X4 <- construct_mats(theta = append_theta(fit_all_data[[4]]$par, model_num = 4),
+                     model_num = 4, whole_mesh = T)
+
+
+
+```
+
 
 ```{r}
 
@@ -916,6 +967,13 @@ The two loops below iterate over the observations and models.
 
 #ref:https://stackoverflow.com/questions/62730783/error-in-makepsockclusternames-spec-cluster-setup-failed-3-of-3-work    
   
+```
+
+
+```{r}
+str(pred)
+
+
 ```
 
 ```{r}
