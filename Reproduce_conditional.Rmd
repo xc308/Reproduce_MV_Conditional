@@ -170,6 +170,7 @@ form_Z <- function(model_num, scale = T){
 }
 
 
+
 ## Number of observations
 m1 <- nrow(weather)
 m2 <- nrow(weather)
@@ -811,17 +812,19 @@ cokrig <- function(X, i = NULL) {
 ```
 
 
+```{r}
+str(X4$Z)
+```
+
 Below we predict at all the mesh locations using Model 1 and Model 4.
 First we construct the required matrices and store them in `X1` and `X4`.
 Then we carry out cokriging and add the mean predictions to the mesh.
 
-```{r}
-lapply(fit_all_data3, function(x) x$par[1:8])
-```
-
-
 
 ```{r, message=F}
+
+# fit_all_data3: his code in this file
+# fit_all_data4: my code in this file
 
 X1 <- construct_mats(theta = append_theta(fit_all_data3[[1]]$par, model_num = 1),
                      model_num = 1, whole_mesh = T)
@@ -838,75 +841,10 @@ X4 <- construct_mats(theta = append_theta(fit_all_data4[[4]]$par, model_num = 4)
                      model_num = 4, whole_mesh = T)
 
 
-
-# fail
-X3 <- construct_mats(theta = append_theta(fit_all_data3[[3]]$par, model_num = 3),
-                     model_num = 3, whole_mesh = T)
-
-X3 <- construct_mats(theta = append_theta(fit_all_data4[[3]]$par, model_num = 3),
-                     model_num = 3, whole_mesh = T)
-
-
-# fail
-X2 <- construct_mats(theta = append_theta(fit_all_data3[[2]]$par, model_num = 2),
-                     model_num = 2, whole_mesh = T)
-
-
-X2 <- construct_mats(theta = append_theta(fit_all_data4[[2]]$par, model_num = 2),
-                     model_num = 2, whole_mesh = T)
-
-
-
 ALL1 <- cokrig(X = X1, i = NULL)
 ALL4 <- cokrig(X = X4, i = NULL)
 ```
 
-```{r}
-
-## fit model individually
-
-X1 <- construct_mats(theta = append_theta(fit.Model1$par, model_num = 1),
-                     model_num = 1, whole_mesh = T)
-
-X2 <- construct_mats(theta = append_theta(fit.Model2$par, model_num = 2),
-                     model_num = 2, whole_mesh = T)  # not pd
-
-
-X3 <- construct_mats(theta = append_theta(fit.Model3$par, model_num = 3),
-                    model_num = 3, whole_mesh = T)   # not pd
-
-
-X4 <- construct_mats(theta = append_theta(fit.Model4$par, model_num = 4),
-                    model_num = 4, whole_mesh = T)
-
-
-
-All4 <- cokrig(X = X4, i = NULL)
-
-```
-
-
-
-```{r}
-# try most original fit 
-X1 <- construct_mats(theta = append_theta(fit_all_data[[1]]$par, model_num = 1),
-                     model_num = 1, whole_mesh = T)
-
-# fail not pd
-X2 <- construct_mats(theta = append_theta(fit_all_data[[2]]$par, model_num = 2),
-                     model_num = 2, whole_mesh = T)
-
-# fail not pd
-X3 <- construct_mats(theta = append_theta(fit_all_data[[3]]$par, model_num = 3),
-                     model_num = 3, whole_mesh = T)
-
-
-X4 <- construct_mats(theta = append_theta(fit_all_data[[4]]$par, model_num = 4),
-                     model_num = 4, whole_mesh = T)
-
-
-
-```
 
 
 ```{r}
@@ -972,7 +910,8 @@ The two loops below iterate over the observations and models.
 
 ```{r}
 str(pred)
-
+head(pred)
+pred[1:30, ]
 
 ```
 
@@ -1262,6 +1201,91 @@ head(sh_pars_results)
 
 
 
+## Fitting history
 
+```{r}
+
+## fit model individually
+
+X1 <- construct_mats(theta = append_theta(fit.Model1$par, model_num = 1),
+                     model_num = 1, whole_mesh = T)
+
+X2 <- construct_mats(theta = append_theta(fit.Model2$par, model_num = 2),
+                     model_num = 2, whole_mesh = T)  # not pd
+
+
+X3 <- construct_mats(theta = append_theta(fit.Model3$par, model_num = 3),
+                    model_num = 3, whole_mesh = T)   # not pd
+
+
+X4 <- construct_mats(theta = append_theta(fit.Model4$par, model_num = 4),
+                    model_num = 4, whole_mesh = T)
+
+
+
+All4 <- cokrig(X = X4, i = NULL)
+
+```
+
+
+
+```{r}
+# try most original fit 
+X1 <- construct_mats(theta = append_theta(fit_all_data[[1]]$par, model_num = 1),
+                     model_num = 1, whole_mesh = T)
+
+# fail not pd
+X2 <- construct_mats(theta = append_theta(fit_all_data[[2]]$par, model_num = 2),
+                     model_num = 2, whole_mesh = T)
+
+# fail not pd
+X3 <- construct_mats(theta = append_theta(fit_all_data[[3]]$par, model_num = 3),
+                     model_num = 3, whole_mesh = T)
+
+
+X4 <- construct_mats(theta = append_theta(fit_all_data[[4]]$par, model_num = 4),
+                     model_num = 4, whole_mesh = T)
+
+```
+
+
+```{r, message=F}
+
+X1 <- construct_mats(theta = append_theta(fit_all_data3[[1]]$par, model_num = 1),
+                     model_num = 1, whole_mesh = T)
+
+X1 <- construct_mats(theta = append_theta(fit_all_data4[[1]]$par, model_num = 1),
+                     model_num = 1, whole_mesh = T)
+
+
+X4 <- construct_mats(theta = append_theta(fit_all_data3[[4]]$par, model_num = 4),
+                     model_num = 4, whole_mesh = T)
+
+
+X4 <- construct_mats(theta = append_theta(fit_all_data4[[4]]$par, model_num = 4),
+                     model_num = 4, whole_mesh = T)
+
+
+
+# fail
+X3 <- construct_mats(theta = append_theta(fit_all_data3[[3]]$par, model_num = 3),
+                     model_num = 3, whole_mesh = T)
+
+X3 <- construct_mats(theta = append_theta(fit_all_data4[[3]]$par, model_num = 3),
+                     model_num = 3, whole_mesh = T)
+
+
+# fail
+X2 <- construct_mats(theta = append_theta(fit_all_data3[[2]]$par, model_num = 2),
+                     model_num = 2, whole_mesh = T)
+
+# fail
+X2 <- construct_mats(theta = append_theta(fit_all_data4[[2]]$par, model_num = 2),
+                     model_num = 2, whole_mesh = T)
+
+
+ALL1 <- cokrig(X = X1, i = NULL)
+ALL4 <- cokrig(X = X4, i = NULL)
+```
 
 
