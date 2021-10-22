@@ -486,7 +486,7 @@ construct_mat <- function(theta, model_num, whole_mesh = F) {
   
   C1B <- C1 %*% B  # link obs with proc
   
-  
+  View(makeS)
   source("make_cov_fn.R")
   
   ## Form matrics (scaled pressure var already)
@@ -817,7 +817,7 @@ cokrig <- function(X, i = NULL) {
     Z <- X$Z
     Q <- chol2inv(chol(C %*% Cz %*% t(C))) %>% as("dgeMatrix")  # Cz inverse
     mu_pred <- (Cz %*% t(C) %*% Q %*% Z) %>% as.numeric()
-    var_pred <- diag(Cz - Cz %*% t(C) %*% Q %*% C %*% Cz) %>% as.numeric()
+    #var_pred <- diag(Cz - Cz %*% t(C) %*% Q %*% C %*% Cz) %>% as.numeric()
     #var_pred <- diag(SS - SS %*% t(C) %*% Q %*% C %*% SS) %*% as.numeric()
     
     
@@ -853,52 +853,32 @@ Now predict at all mesh locations using model 1 and 4
 X1 <- construct_mat(theta = append_theta(theta = fit_all_data5[[1]]$par, model_num = 1), model_num = 1, whole_mesh = T)
 
 
-#X2 <- construct_mat(theta = append_theta(theta = fit.Model2$par, model_num = 2),
-#                   model_num = 2, whole_mesh = T)
-
-X2 <- construct_mat(theta = append_theta(theta = fit_all_data5[[2]]$par, model_num = 2), model_num = 2, whole_mesh = T)
-
-
-#X3 <- construct_mat(theta = append_theta(theta = fit.Model3$par, model_num = 3),
-#                    model_num = 3, whole_mesh = T)
-
-
-X3 <- construct_mat(theta = append_theta(theta = fit_all_data5[[3]]$par, model_num = 3), model_num = 3, whole_mesh = T)
-
-
-#X4 <- construct_mat(theta = append_theta(theta = fit.Model4$par,                                         model_num = 4), 
-#                    model_num = 4, whole_mesh = T)
-
-
 X4 <- construct_mat(theta = append_theta(theta = fit_all_data5[[4]]$par, model_num = 4), model_num = 4, whole_mesh = T)
 
 
-
 ALL1 <- cokrig(X = X1, i = NULL)
-All3 <- cokrig(X = X3, i = NULL)
 ALL4 <- cokrig(X = X4, i = NULL)
 ```
 
 ```{r}
 # Question
 
-Cz_3 <- X3$CY + X3$Co
-isSymmetric(Cz_3)  # [1] TRUE
+Cz_4 <- X4$CY + X4$Co
+isSymmetric(Cz_4)  # [1] TRUE
 
 
-Cz_obs <- C %*% Cz_3 %*% t(C)
+Cz_obs <- C %*% Cz_4 %*% t(C)
 str(Cz_obs)
 isSymmetric(Cz_obs)  # [1] TRUE
-chol_Cz3 <- chol(Cz_obs)   # asMethod(object) : matrix is not symmetric [174,200]
+chol_Cz4 <- chol(Cz_obs)   # Error in asMethod(object) : not a positive definite matrix
 
 ei_Czobs <- eigen(Cz_obs, only.values = T)
 all(ei_Czobs$values > 0)  # [1] FALSE
 all(ei_Czobs$values >= 0)  # [1] FALSE
-which(ei_Czobs$values < 0)  # [1] 309 310 311 312 313 314
+which(ei_Czobs$values < 0)  # [1] 314
 
-le
+ei_Czobs$values[314]    # [1] -11.02249
 
-Q <- chol2inv(chol(C %*% Cz %*% t(C)))
 
 ```
 
@@ -952,22 +932,19 @@ Matern_fn <- function(phi = 1, Alpha = 1, nu = 0.5, d) {
 
 
 
-C11_proc <- makeC(D = Dvec, Var = fit.Model2$par[3], Kappa = fit.Model2$par[5], nu = fit.Model3$par[7])
-
-C11_p <- makeC(D = Dvec, Var = fit_all_data[[2]]$par[3], Kappa = fit_all_data[[2]]$par[5],
-      nu = fit_all_data[[2]]$par[7])
+C11_p <- makeC(D = Dvec, 
+               Var = fit_all_data5[[2]]$par[3], 
+               Kappa = fit_all_data5[[2]]$par[5],
+               nu = fit_all_data5[[2]]$par[7])
 
 ch_C11p <- chol(C11_p)
-
-isSymmetric(C11_proc) # [1] TRUE
-ch_C11 <- chol(C11_proc)
 
 ```
 
 
 ```{r}
 # his fit is fit_all_data; fit_all_data3
-# mine fit_all_data2 and fit.Model2
+# mine fit_all_data2 and fit.Model2, fit_all_data5
 
 fit_all_data2[[4]]$par[3]  # [1] 9.769797
 fit_all_data2[[4]]$par[5]  # [1] 0.06807344
@@ -996,28 +973,6 @@ Y <- lapply(fit_all_data5, function(x) x$par[7])
 Y
 
 
-
-fit_all_data[[2]]$par[3]   # [1] 6.775386
-fit_all_data[[2]]$par[5]   # [1] 0.01132269
-fit_all_data[[2]]$par[7]   # [1] 0.6020534
-
-fit_all_data2[[2]]$par[3]  # [1] 1.045282
-fit_all_data2[[2]]$par[5]  # [1] 0.007850412
-fit_all_data2[[2]]$par[7]  # [1] 5.199892
-
-
-fit.Model2$par[3]    # [1] 1.045282
-fit.Model2$par[5]    # [1] 0.00785041
-fit.Model2$par[7]    # [1] 5.199892
-
-
-# his code in Rp_con.Rmd
-fit_all_data3[[2]]$par[3]  # 1.045282
-fit_all_data3[[2]]$par[5]  # 0.007850412
-fit_all_data3[[2]]$par[7]  # 5.199892
-
-
-
 ```
 
 
@@ -1027,6 +982,48 @@ fit_all_data3[[2]]$par[7]  # 5.199892
 
 ## Leave-one-out cross validation
 
+```{r}
+# use my own fitted data fit_all_data5
+
+
+#if (LOO_analysis) {
+
+  library(doParallel)
+  cl <- parallel::makeCluster(4, setup_strategy = "sequential")
+  #cl <- makePSOCKcluster(4, outfile = "cores_output.txt")
+  registerDoParallel(cl)
+  
+  
+  ## loop over each obs location
+  pred <- foreach(i = 1:m1, .combine = "rbind", 
+          .packages = c("Matrix", "bicon", "dplyr", "foreach")) %dopar% {
+            
+            fit.Model <- fit_all_data2  # with fitted pars so can predict
+            
+            ## loop over each model (not parallised)
+            pred <- foreach(j = seq_along(fit.Model), .combine = "rbind") %do% {
+              
+              ## construct matrices X
+              X <- construct_mats(theta = append_theta(fit.Model[[j]]$par, 
+                                                       model_num = j), 
+                                  model_num = j)
+              
+              ## cokrig, leaving out the ith obs for both press and temp
+              cbind(cokrig(X, i = c(i, m1 + i)), model_num = j)
+            }
+            
+            pred 
+          }
+  
+  
+  stopCluster(cl)
+  
+#}
+
+
+#ref:https://stackoverflow.com/questions/62730783/error-in-makepsockclusternames-spec-cluster-setup-failed-3-of-3-work    
+  
+```
 
 
 
