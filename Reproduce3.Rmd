@@ -1,0 +1,210 @@
+---
+title: "Reproduc3_(M4 only)"
+author: "XC"
+date: "21/10/2021"
+output: pdf_document
+---
+
+```{r}
+library(INLA)    # for triangualtion
+library(deldir)  # for tessalation area
+
+# for core operation
+library(dplyr)
+library(tidyr)
+library(Matrix)
+
+library(ggplot2)
+library(gridExtra)
+library(grid)
+library(extrafont)
+
+
+library(maptools)
+library(mapproj)
+library(RandomFields)
+
+
+library(verification)
+
+library(foreach)
+library(doParallel)
+
+
+library(bicon)
+```
+
+
+
+## The data
+
+Available from package `RandomFields`
+```{r}
+data("weather", package = "RandomFields")
+str(weather)  # num [1:157, 1:4] 
+
+weather <- weather %>% data.frame()
+weather %>% head()
+```
+
+
+The `weather` table contains four fields:
+  - latitude, 
+  - longitude, 
+  - pressure forecasting errors,
+  - temperature forecasting errors 
+  for December 13, 2003 at 4 p.m. in the North American Pacific Northwest.
+
+
+Since pressure and temperature have different units, we find a scaling factor by taking the ratio of the sample variances of the two variates, and computing its square root.
+
+We will use this factor to scale the pressure variable.
+
+```{r}
+Press_scale <- var(weather$pressure) / var(weather$temperature) %>% 
+  sqrt() %>% 
+  as.numeric()
+```
+
+
+From this data frame we extract $Z_1$ and $Z_2$ and concatenate them into one long vector $Z$ through a function `Form_Z`.
+
+
+```{r}
+Form_Z <- function(scale = T) {
+  Z1 <- matrix(weather$temperature)
+  Z2 <- matrix(weather$pressure)
+  
+  if (Z2) Z2 <- Z2 / Press_scale
+  
+  Z <- rbind(Z1, Z2)
+}
+```
+
+
+We also define `m1` as the number of observations of $Z_1$, `m2` as the number of observations of $Z_2$ and `m` as the total number of observations.
+
+```{r}
+m1 <- m2 <- nrow(weather)
+m <- m1 + m2  # total obs
+
+#I_m1<- Diagonal(m1)
+````
+
+
+## Process Discretisation
+
+The process of each variable is a curved flunctuated suface. We approximate this
+suface by using discretized simple geometry subdomains, e.g. triangles, which are termed as "finite elements",  and the process over each subdomain can itself be approximated by a 2D planar surface. 
+
+Relationship btw delauny triangualtion and Voronoi tesselation?
+To be added.
+
+Each node of triangle is the center point of the V. tesselation, so the area of the tess is easier to calculate than that of the triangules of irregualar length and angles. 
+
+
+We approximate the processes as a sum of elemental basis functions (tent functions) constructed on a triangulation. 
+
+The triangulation is formed using the mesher in the `INLA` package.
+
+while `initFEbasis`, which takes information from the `INLA` mesher and casts it into a `Mesh` object and provide several useful methods associated with the `Mesh` class for plotting later on as well as the information on the areas of the elements in the Voronoi tesselation, which will be used to approximate the integrations.
+
+Alternatively, we use `deldir` package to 1. construct the voroini tesselation using the triangualtion mesh nodes from INLA; 2. extract the tessalation area directly from the output summary. 
+
+
+```{r}
+## discretizing process Y1,Y2 using triangular grid
+
+# constructing mesh
+
+#str(weather[c("lon", "lat")])  'data.frame':	157 obs. of  2 variables:
+
+mesh <- inla.mesh.2d(loc = weather[c("lon", "lat")], 
+             cutoff = 0, 
+             max.edge = 0.75,
+             offset = 4)
+
+
+
+# mesh locations
+str(mesh$loc)  # num [1:2071, 1:3]
+mesh_locs <- mesh$loc[, 1:2]
+
+```
+
+
+```{r}
+## compute distances as in Gneiting(2010) -- greate-circle distance
+
+### Greate circle distance: shortest distance between two points on the surface of a sphere, measured along the surface of the sphere not interior
+
+# tranform coords from ellipsoid earth to cartesian
+# cartesian dist btw pairs of locs
+D <- as.matrix(RFearth2dist(coord = as.matrix(mesh_locs)))  
+D_vec <- as.double(c(D))   # num [1:4289041] = 2071*2071
+
+
+## obs locations in cartesian 
+Dobs <- as.matrix(RFearth2dist(coord = as.matrix(weather[c("lon", "lat")])))
+Dobs_vec <- c(Dobs)
+
+```
+
+
+```{r}
+## construct voroini tesselation and then get the area
+Voronoi <- deldir(x = mesh_locs[, 1], 
+       y = mesh_locs[, 2], 
+       plot = T, 
+       rw = c(min(mesh_locs[, 1]) - 0.0001,
+              max(mesh_locs[, 1]) + 0.0001,
+              min(mesh_locs[, 2]) - 0.0001,
+              max(mesh_locs[, 2]) + 0.0001))
+
+str(Voronoi)
+
+Area_tess <- Voronoi$summary$dir.area
+
+
+Mesh_df <- data.frame(Lon = mesh_locs[, 1], Lat = mesh_locs[, 2],
+           Area_tess = Area_tess, Indx = 1:length(mesh_locs[, 1]))
+
+head(Mesh_df)
+
+str(Mesh_df[, "Area_tess"])  # num[1:2071]
+str(Mesh_df["Area_tess"])    # df
+```
+
+
+
+## Establish the dimension of our grid
+Since we will be evaluating $Y_1$ and $Y_2$ on the same grid, `n1` = `n2`.
+
+```{r}
+## mesh size
+n1 <- n2 <- nrow(mesh_locs)
+n <- n1 + n2   # # 4142
+```
+
+
+
+When using finite elements, this reduces to the integrand being evaluated at the Delauny triangulation nodes times the area of the corresponding V tess with each tri node as its center points. 
+
+```{r}
+#str(mesh_locs[1, ])  # num [1:2] -129.6 36.8
+#str(t(t(mesh_locs) - mesh_locs[1, ]))
+
+
+h <- matrix(0, n1 * n2, 2)
+Areas <- rep(0, n1 * n2)
+for (i in 1:n2) {
+  h[((i - 1) * n1 + 1) : (i * n1), ] <- t(t(mesh_locs) - mesh_locs[1, ])
+  Areas[((i - 1) * n1 + 1) : (i * n1)] <- Mesh_df[, "Area_tess"]
+}
+
+# h and Areas will be used in constructing bisquare_B function for B
+```
+
+
+
+
