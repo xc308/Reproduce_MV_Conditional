@@ -71,11 +71,17 @@ From this data frame we extract $Z_1$ and $Z_2$ and concatenate them into one lo
 
 
 ```{r}
-Form_Z <- function(scale = T) {
+Form_Z <- function(model_num, scale = T) {
   Z1 <- matrix(weather$temperature)
   Z2 <- matrix(weather$pressure)
   
   if (Z2) Z2 <- Z2 / Press_scale
+  
+  if (model_num != 1) {
+     temp <- Z1
+     Z1 <- Z2
+     Z2 <- temp
+  }
   
   Z <- rbind(Z1, Z2)
 }
@@ -89,7 +95,7 @@ m1 <- m2 <- nrow(weather)
 m <- m1 + m2  # total obs
 
 #I_m1<- Diagonal(m1)
-````
+```
 
 
 ## Process Discretisation
@@ -203,7 +209,185 @@ for (i in 1:n2) {
 }
 
 # h and Areas will be used in constructing bisquare_B function for B
+
 ```
+
+
+
+## Organising the observations
+
+- Construct an incidence matrix to map the obs to process node
+  - with `1` wherever obs coincides with process and `0` otherwise
+  
+- The dimension of this incidence matrix is `m1 + m2` by `n1 + n2`
+  - where the `m1, m2` are the number of obs
+  
+- As Temp and Press have collocated obs, only need to find incidence matrix for Z1,
+then the whole incidence matrix using `bdiag` with dimension as mentioned above
+
+- Use `left_join` function to find the points where obs coincide with proc nodes, which returns `NA` if not
+
+```{r}
+str(mesh_locs)  #  num [1:2071, 1:2] -130 -114 
+# Need to df it
+head(weather)
+
+mesh_locs <- data.frame(lon = mesh_locs[, 1], lat = mesh_locs[, 2]) # lower case
+
+idx <- which(!is.na(left_join(mesh_locs, weather)$temperature))
+str(idx)   #  int [1:157] 9 10 11 12 13 14 15 16 17 18 ...
+
+C1 <- sparseMatrix(i = 1:m1, j = idx, x = 1, dims = c(m1, n1)) # incidence matrix of Z1
+
+C <- bdiag(C1, C1)    # incidence matrix of Z1, Z2
+```
+
+
+
+## Maximum likelihood estimation
+
+As we only have 1 model and its reverse, and they are of the same length, so no need to append theta for shorter length of parameter vectors of some simpler models. 
+
+Next, we write a function that given the model number and parameters will return the desired matrices `SY` and `So`. 
+
+Then add `SY` and `So` together to obtain the joint covariance matrix for the joint obs `Y1` and `Y2` which is the same as `Z1` and `Z2` at the obs locations.
+
+If `whole_mesh` is T, and the process covariance matrix is evaluated at the all process locations (entire mesh), which is used for cokriging at unobsered locations. 
+
+```{r}
+
+construct_matrices <- function(model_num, thetha, whole_mesh = F) {
+  
+  B <- theta[9] * bisquare_B(h1 = h[, 1], h2 = h[, 2],
+                  delta = theta[11:12], r = theta[10],
+                  n1 = n1, n2 = n2,
+                  areas = Areas)
+  
+  C1B <- C1 %*% B
+  
+  ## Form matrices (scaled pressure)
+  
+  S11 <- makeS(r = Dobs_vec, var = theta[3], kappa = theta[5], nu = theta[7])
+  S2_1 <- makeS(r = Dobs_vec, var = theta[4], kappa = theta[6], nu = theta[8])
+  
+  
+  if (model_num %in% c(1, 2) | whole_mesh == T) {
+    
+    S11_proc <- makeS(r = D_vec, var = theta[3], kappa = theta[5], nu = theta[7])
+    S12 <- (C1 %*% S11_proc) %*% t(C1B)
+    S21 <- t(S12)
+    S22 <- S2_1 + forceSymmetric(C1B %*% forceSymmetric(S11_proc) %*% t(C1B))
+  }
+  
+  
+  if (whole_mesh == T) {
+    S2_1 <- makeS(r = D_vec, var = theta[4], kappa = theta[6], nu = theta[8])
+    
+    S11 <- S11_proc
+    S12 <-  S11_proc %*% t(B)
+    S21 <- t(S12)
+    S22 <- S2_1 + crossprod(chol(S11_proc) %*% t(B))
+  }
+  
+  
+  ## Form matrices (Unscaled pressure)
+  S11_true <- ifelse (model_num = 1, 1, P_scale^2) * S11
+  S22_true <- ifelse (model_num = 1, P_scale^2, 1) * S22
+  S12_true <- S12 * P_scale
+  S21_true <- S21 * P_scale
+  
+  SY_true <- rbind(cbind(S11_true, S12_true), cbind(S21_true, S22_true)) %>% as("dgeMatrix")
+  
+  
+  #Imat <- function(n) {
+  #  sparseMatrix(i = 1:n, j = 1:n, x = 1)
+  #}
+  source("SparseMat_Imat.R")
+
+  I_m1 <- Imat(m1)
+  So_11_true <- ifelse(model_num = 1, 1, P_scale^2) * theta[1] * Im1
+  So_22_true <- ifelse(model_num = 1, P_scale^2, 1) * theta[2] * Im2
+  
+  So_true <- bidag(So_11_true, So_22_true)
+  
+
+  if (whole_mesh == T) {
+    So_true <- t(C) %*% So_true %*% C
+  }
+  
+  
+  list(SY = SY_true, So = So_true, Z = Form_Z(model_num, scale = F))
+ 
+}
+```
+
+
+Define log_likelihood.
+  - Usual Gaussian log-likelihood function
+  - Also allow for dropping certain obs for CV
+  - The obs we wish to drop is stored in parameter `i`. and if `i = NULL`, no obs is dropped. This arg is useful for CV
+  
+```{r}
+
+loglik_Mod <- function(theta, model_num, i = NULL) {
+  
+  # theta1: sigma2e1
+  # theta2: sigma2e2
+  # theta3: sigma211
+  # theta4: sigma22_1
+  # theta5: kappa11
+  # theta6: kappa2_1
+  # theta7: nu11
+  # theta8: nu2_1
+  # theta9: A
+  # theta10: r
+  # theta11: d1
+  # theta12: d2
+  
+  ## Hard constraints on parameters
+  if (theta[1] <= 0 | theta[2] <= 0 | theta[3] <= 0 | theta[4] <= 0
+      | theta[5] <= 0.001 | theta[6] <= 0.001 | theta[7] <= 0.05 
+      | theta[8] <= 0.05 | theta[10] <= 0.0005) {
+    return(Inf)
+  } else {
+    ## Construct matrics
+    X <- construct_matrices(model_num, theta)
+  
+    ## Drop obs for CV
+    if (is.na(i)) {
+      SY <- X$SY
+      So <- X$So
+      Z <- X$Z
+    } else {
+      SY <- X$SY[-i, -i]
+      So <- X$So[-i, -i]
+      X$Z[-i, , drop = F]
+    }    
+    
+    ## Evaluate log_likilihood function
+    source("log_det.R")
+    
+    cholYo <- chol(SY + So)
+    log_lik <- -(-0.5 * nrow(Z) * log(2 * pi) 
+                 - 0.5 * log_det(cholYo)
+                 - 0.5 * t(Z) %*% chol2inv(cholYo) %*% Z) %>% as.numeric()
+    
+    
+    ## return
+    return(log_lik)
+    
+  }
+ 
+}
+
+```
+
+
+
+
+
+
+
 
 
 
