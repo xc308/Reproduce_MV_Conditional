@@ -263,17 +263,15 @@ If `whole_mesh` is T, and the process covariance matrix is evaluated at the all 
 
 construct_matrices <- function(theta, model_num, whole_mesh = F) {
   
-  #B <- theta[9] * bisquare_B(h1 = h[, 1], h2 = h[, 2],
-                  #delta = theta[11:12], r = theta[10],
-                  #n1 = n1, n2 = n2,
-                  #areas = Areas)
+  B <- theta[9] * bisquare_B(h1 = h[, 1], h2 = h[, 2],
+                  delta = theta[11:12], r = theta[10],
+                  n1 = n1, n2 = n2,
+                  areas = Areas)
   
   
-  View(bisquare_B)
-  
-  source("bisq_fn(2d_B).R")
-  B <- theta[9] * bisq_B(h = h, delta = theta[11:12], r = theta[10],
-         n1 = n1, n2 = n2, area = Areas)
+  #source("bisq_fn(2d_B).R")
+  #B <- theta[9] * bisq_B(h = h, delta = theta[11:12], r = theta[10],
+   #      n1 = n1, n2 = n2, area = Areas)
  
   
   C1B <- C1 %*% B
@@ -422,7 +420,11 @@ optim_loglik <- function(par, model_num, i = NULL) {
 ```{r}
 
 fit_m1 <- optim_loglik(par = c(0.01, 1, 5, 15, 0.01, 0.01, 0.6, 1.5, -0.2, 0.1, 0, 0),
-                model_num = 1, i = NULL)
+                model_num = 1, i = NULL) # my bisq_B
+
+fit_m1_hisB <- optim_loglik(par = c(0.01, 1, 5, 15, 0.01, 0.01, 0.6, 1.5, -0.2, 0.1, 0, 0),
+                model_num = 1, i = NULL) # his bisquare_B
+
 
 fit_m2 <- optim_loglik(par = c(1, 0.01, 15, 5, 0.01, 0.01, 1.5, 0.6, -0.2, 0.1, 0, 0),
              model_num = 2, i = NULL)
@@ -432,12 +434,15 @@ fit_m2 <- optim_loglik(par = c(1, 0.01, 15, 5, 0.01, 0.01, 1.5, 0.6, -0.2, 0.1, 
 
 
 ```{r}
-str(fit_m1)
+str(fit_m1)   
 #str(fit_m2)
+str(fit_m1_hisB)  
 
-str(fit_all_data5[[4]])
-str(fit_all_data4[[4]])
-str(fit_all_data3[[4]])
+# Results are the same for my bisq_B and his bisquare_B
+
+#str(fit_all_data5[[4]])
+#str(fit_all_data4[[4]])
+#str(fit_all_data3[[4]])
 
 ```
 
@@ -491,17 +496,21 @@ Now predict
 ```{r}
 # The results of using my bisq_B 
 X_1 <- construct_matrices(theta = fit_m1$par, model_num = 1, whole_mesh = T)
+X1_hisbisq <- construct_matrices(theta = fit_m1_hisB$par, model_num = 1, whole_mesh = T)
 
-Pred_X1 <- co_krig(X = X_1, i = NULL)   
+Pred_X1 <- co_krig(X = X_1, i = NULL) 
+Pred_X1_hisbisq <- co_krig(X = X1_hisbisq, i = NULL)
+
 str(Pred_X1)
+str(Pred_X1_hisbisq)
 
 save(X_1, file = paste0("./Results/X_1.rda"))
 save(Pred_X1, file = paste0("./Results/Pred_X1.rda"))
 ```
 
 ```{r}
-str(All4)
 str(ALL4)
+save(ALL4, file = paste0("./Results/Pred_M4.rda"))
 
 ```
 
