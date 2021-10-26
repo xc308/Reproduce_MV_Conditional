@@ -385,6 +385,10 @@ h2_double <- as.double(h[, 2])
 str(h1_double)
 
 str(Area)
+
+save(h, file = "./Results/h.rda")
+save(fit_all_data2, file = paste0("./Results/fit_all_data2.rda"))
+
 ```
 
 
