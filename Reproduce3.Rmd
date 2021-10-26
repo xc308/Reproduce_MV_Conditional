@@ -495,8 +495,8 @@ X_1 <- construct_matrices(theta = fit_m1$par, model_num = 1, whole_mesh = T)
 Pred_X1 <- co_krig(X = X_1, i = NULL)   
 str(Pred_X1)
 
-save(X_1, file = paste0("./Results/X1_bisq_B.rda"))
-save(Pred_X1, file = paste0("./Results/Pred_X1_bisq_B.rda"))
+save(X_1, file = paste0("./Results/X_1.rda"))
+save(Pred_X1, file = paste0("./Results/Pred_X1.rda"))
 ```
 
 ```{r}
