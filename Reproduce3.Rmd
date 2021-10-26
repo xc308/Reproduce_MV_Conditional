@@ -485,6 +485,29 @@ co_krig <- function(X, i = NULL) {
 ```
 
 
+Now predict
+- 1st construct matrices X
+- then apply above co_krig function
+```{r}
+# The results of using my bisq_B 
+X_1 <- construct_matrices(theta = fit_m1$par, model_num = 1, whole_mesh = T)
+
+Pred_X1 <- co_krig(X = X_1, i = NULL)   
+str(Pred_X1)
+
+save(X_1, file = paste0("./Results/X1_bisq_B"))
+save(Pred_X1, file = paste0("./Results/Pred_X1_bisq_B"))
+```
+
+```{r}
+str(All4)
+str(ALL4)
+
+```
+
+
+
+
 
 ### Construct Covariance Matrices in the log_lik (makeC version)
 ```{r}
