@@ -561,8 +561,8 @@ construct_matrices_C <- function(theta, model_num, whole_mesh = F) {
     C2_1 <- makeC(Var = theta[4], Kappa = theta[6], nu = theta[8], D = D_vec)
     C11 <- C11_proc
     C12 <- C11_proc %*% t(B)
-    
-    
+    C21 <- t(C12)
+    C22 <- C2_1 + crossprod(chol(C11_proc) %*% t(B))
     
     
     #S2_1 <- makeS(r = D_vec, var = theta[4], kappa = theta[6], nu = theta[8])
@@ -575,12 +575,12 @@ construct_matrices_C <- function(theta, model_num, whole_mesh = F) {
   
   
   ## Form matrices (Unscaled pressure)
-  S11_true <- ifelse (model_num == 1, 1, P_scale^2) * S11
-  S22_true <- ifelse (model_num == 1, P_scale^2, 1) * S22
-  S12_true <- S12 * P_scale
-  S21_true <- S21 * P_scale
+  C11_true <- ifelse (model_num == 1, 1, Press_scale^2) * C11
+  C22_true <- ifelse (model_num == 1, Press_scale^2, 1) * C22
+  C12_true <- C12 * Press_scale
+  C21_true <- C21 * Press_scale
   
-  SY_true <- rbind(cbind(S11_true, S12_true), cbind(S21_true, S22_true)) %>% as("dgeMatrix")
+  CY_true <- rbind(cbind(C11_true, C12_true), cbind(C21_true, C22_true)) %>% as("dgeMatrix")
   
   
   #Imat <- function(n) {
@@ -589,26 +589,152 @@ construct_matrices_C <- function(theta, model_num, whole_mesh = F) {
   source("SparseMat_Imat.R")
 
   I_m1 <- Imat(m1)
-  So_11_true <- ifelse(model_num == 1, 1, P_scale^2) * theta[1] * I_m1
-  So_22_true <- ifelse(model_num == 1, P_scale^2, 1) * theta[2] * I_m1
+  Co_11_true <- ifelse(model_num == 1, 1, Press_scale^2) * theta[1] * I_m1
+  Co_22_true <- ifelse(model_num == 1, Press_scale^2, 1) * theta[2] * I_m1
   
-  So_true <- bdiag(So_11_true, So_22_true)
+  Co_true <- bdiag(Co_11_true, Co_22_true)
   
 
   if (whole_mesh == T) {
-    So_true <- t(C) %*% So_true %*% C
+    Co_true <- t(C) %*% Co_true %*% C
   }
   
-  
-  list(SY = SY_true, So = So_true, Z = Form_Z(model_num, scale = F))
+  list(CY = CY_true, Co = Co_true, Z = Form_Z(model_num, scale = F))
  
 }
 ```
 
 
+## Log-liklihood function
+```{r}
+log_lik_C <- function(theta, model_num, i = NULL) {
+  
+  ## hard constraints on theta
+  if (theta[1] <= 0 | theta[2] <= 0 | theta[3] <= 0 | theta[4] <= 0
+      | theta[5] <= 0.001 | theta[6] <= 0.001 | theta[7] <= 0.005
+      | theta[8] <= 0.005 | theta[10] < 0.0005) {
+    return(Inf)
+  } else {
+        
+      ## construct matrices
+      X <- construct_matrices_C(theta, model_num)
+      
+      
+      ## drop obs for CV
+      if (is.null(i)) {
+        CY <- X$CY
+        Co <- X$Co
+        Z <- X$Z
+      } else {
+        CY <- X$CY[-i, -i]
+        Co <- X$Co[-i, -i]
+        Z <- X$Z[-i, , drop = F]
+      }
+      
+      
+      ## evaluate log-lik
+      source("log_det.R")
+      
+      cholCz <- chol(CY + Co)
+      log_lik <- -(-0.5 * nrow(Z) * log(2 * pi) 
+        - 0.5 * log_det(cholCz) 
+        - 0.5 * t(Z) %*% chol2inv(cholCz) %*% Z) %>% as.numeric()
+      # note: must as.numeric
+      
+      
+      ## return
+      return(log_lik)
+        
+      }
+}
+
+```
+
+
+
+## optim function (BFGS)
+```{r}
+optim_loglik <- function(par, model_num, i = NULL) {
+  optim(par = par, 
+        fn = log_lik_C, 
+        model_num = model_num,
+        i = i, 
+        hessian = F, 
+        control = list(trace = 6, 
+                       pgtol = 0,
+                       parscale = rep(0.1, length(par)),
+                       maxit = 3000))
+  
+}
+
+```
+
+fit the model to the data
+
+```{r}
+
+fit_m1_C <- optim_loglik(par = c(0.01, 1, 5, 15, 0.01, 0.01, 0.6, 1.5, -0.2, 0.1, 0, 0),
+                model_num = 1, i = NULL)
+
+
+str(fit_m1_C)
+```
+
+
+## Cokrig 
+
+```{r}
+cokrig_C <- function(X, i = NULL) {
+  Cz <- X$CY + X$Co
+  
+  if (is.null(i)) {
+    # Cz is proc level
+    
+    Z <- X$Z
+    Q <- chol2inv(chol(C %*% Cz %*% t(C))) %>% as("dgeMatrix")
+    
+    mu_pred <- Cz %*% t(C) %*% Q %*% Z %>% as.numeric()
+    var_pred <- diag(Cz - Cz %*% t(C) %*% Q %*% C %*% Cz) %>% as.numeric()
+    
+    data.frame(mu_pred = mu_pred, var_pred = var_pred)
+    
+  } else {
+    
+    # Cz is obs level
+    # pred at the i th obs
+    
+    Z <- X$Z
+    Q <- chol2inv(chol(Cz[-i, -i])) %>% as("dgeMatrix")
+    
+    mu_pred <- Cz[i, -i] %*% Q %*% Z[-i, , drop = F] %>% as.numeric()
+    var_pred <- diag(Cz[i, i] - Cz[i, -i] %*% Q %*% Cz[-i, i]) %>% as.numeric()
+    
+    data.frame(mu_pred = mu_pred, 
+               var_pred = var_pred,
+               Z = X$Z[i, ],
+               i = i)
+    
+  }
+
+}
+
+
+```
+
+
+```{r}
+X1_C <- construct_matrices_C(fit_m1_C$par, model_num = 1, whole_mesh = T)
+
+Pred_X1_C <- cokrig_C(X = X1_C, i = NULL)
+
+str(Pred_X1_C)  # his bisq, makeC
+str(Pred_X1_hisbisq)  # his bisq, makeS
+# the same
+
+save(X1_C, file = "./Results/X1_C.rda")
+save(Pred_X1_C, file = "./Results/Pred_X1_C.rda")
 
 
 
 
-
-
+```
