@@ -75,7 +75,7 @@ Form_Z <- function(model_num, scale = T) {
   Z1 <- matrix(weather$temperature)
   Z2 <- matrix(weather$pressure)
   
-  if (Z2) Z2 <- Z2 / Press_scale
+  if (scale) Z2 <- Z2 / Press_scale
   
   if (model_num != 1) {
      temp <- Z1
@@ -100,11 +100,12 @@ m <- m1 + m2  # total obs
 
 ## Process Discretisation
 
-The process of each variable is a curved flunctuated suface. We approximate this
-suface by using discretized simple geometry subdomains, e.g. triangles, which are termed as "finite elements",  and the process over each subdomain can itself be approximated by a 2D planar surface. 
+- The process of each variable is a curved flunctuated suface. Follow the FEM idea, We approximate this suface by using discretized simple geometry subdomains, e.g. triangles, which are termed as "finite elements",  and the process over each subdomain can itself be approximated by a 2D planar surface. 
 
-Relationship btw delauny triangualtion and Voronoi tesselation?
-To be added.
+- Relationship btw delauny triangulation and Voronoi tesselation?
+  - Since each triangle has to be determined by 3 nodes, we seek a more efficient way to deternime a simple geometry in the fashsion that connecting the bisector of each pairs of the tri nodes to create the Voronoi tesselation, and by the property of triangles, each node is the centriod of the hexagon (tesselation), so using the tesselation as the finite element and with known centroids, its area is much easier to determine.
+  
+
 
 Each node of triangle is the center point of the V. tesselation, so the area of the tess is easier to calculate than that of the triangules of irregualar length and angles. 
 
@@ -254,9 +255,11 @@ Then add `SY` and `So` together to obtain the joint covariance matrix for the jo
 
 If `whole_mesh` is T, and the process covariance matrix is evaluated at the all process locations (entire mesh), which is used for cokriging at unobsered locations. 
 
+
+### Construct Covariance Matrices in the log_lik
 ```{r}
 
-construct_matrices <- function(model_num, thetha, whole_mesh = F) {
+construct_matrices <- function(theta, model_num, whole_mesh = F) {
   
   B <- theta[9] * bisquare_B(h1 = h[, 1], h2 = h[, 2],
                   delta = theta[11:12], r = theta[10],
@@ -291,8 +294,8 @@ construct_matrices <- function(model_num, thetha, whole_mesh = F) {
   
   
   ## Form matrices (Unscaled pressure)
-  S11_true <- ifelse (model_num = 1, 1, P_scale^2) * S11
-  S22_true <- ifelse (model_num = 1, P_scale^2, 1) * S22
+  S11_true <- ifelse (model_num == 1, 1, P_scale^2) * S11
+  S22_true <- ifelse (model_num == 1, P_scale^2, 1) * S22
   S12_true <- S12 * P_scale
   S21_true <- S21 * P_scale
   
@@ -305,10 +308,10 @@ construct_matrices <- function(model_num, thetha, whole_mesh = F) {
   source("SparseMat_Imat.R")
 
   I_m1 <- Imat(m1)
-  So_11_true <- ifelse(model_num = 1, 1, P_scale^2) * theta[1] * Im1
-  So_22_true <- ifelse(model_num = 1, P_scale^2, 1) * theta[2] * Im2
+  So_11_true <- ifelse(model_num == 1, 1, P_scale^2) * theta[1] * I_m1
+  So_22_true <- ifelse(model_num == 1, P_scale^2, 1) * theta[2] * I_m1
   
-  So_true <- bidag(So_11_true, So_22_true)
+  So_true <- bdiag(So_11_true, So_22_true)
   
 
   if (whole_mesh == T) {
@@ -322,7 +325,7 @@ construct_matrices <- function(model_num, thetha, whole_mesh = F) {
 ```
 
 
-Define log_likelihood.
+### Define log_likelihood
   - Usual Gaussian log-likelihood function
   - Also allow for dropping certain obs for CV
   - The obs we wish to drop is stored in parameter `i`. and if `i = NULL`, no obs is dropped. This arg is useful for CV
@@ -351,10 +354,10 @@ loglik_Mod <- function(theta, model_num, i = NULL) {
     return(Inf)
   } else {
     ## Construct matrics
-    X <- construct_matrices(model_num, theta)
+    X <- construct_matrices(theta, model_num)
   
     ## Drop obs for CV
-    if (is.na(i)) {
+    if (is.null(i)) {
       SY <- X$SY
       So <- X$So
       Z <- X$Z
@@ -384,11 +387,33 @@ loglik_Mod <- function(theta, model_num, i = NULL) {
 
 
 
+### Optimization
+- Use ® function `optim` (BFGS)
+- Allow for 3000 maximum iterations; trace = 6; Hessian is not required; 
+- `i` indicate the indices we wish to drop; if `i = NULL` then all obs are included.
+- `optim_loglik` function will be used on different models later
+
+```{r}
+optim_loglik <- function(par, model_num, i = NULL) {
+  optim(par = par, 
+        fn = loglik_Mod,
+        i = i,
+        hessian = F, 
+        model_num = model_num,
+        control = list(trace = 6,
+                       pgtol = 0, 
+                       parscale = rep(0.1, length(par)),
+                       maxit = 3000))
+  
+}
+```
 
 
+```{r}
 
+fit_m1 <- optim_loglik(par = c(0.01, 1, 5, 15, 0.01, 0.01, 0.6, 1.5, -0.2, 0.1, 0, 0),
+                model_num = 1, i = NULL)
 
-
-
-
-
+fit_m2 <- optim_loglik(par = c(1, 0.01, 15, 5, 0.01, 0.01, 1.5, 0.6, -0.2, 0.1, 0, 0),
+             model_num = 2, i = NULL)
+```
