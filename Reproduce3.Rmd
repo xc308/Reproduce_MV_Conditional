@@ -211,6 +211,8 @@ for (i in 1:n2) {
 
 # h and Areas will be used in constructing bisquare_B function for B
 
+str(h)
+head(h)
 ```
 
 
@@ -261,10 +263,18 @@ If `whole_mesh` is T, and the process covariance matrix is evaluated at the all 
 
 construct_matrices <- function(theta, model_num, whole_mesh = F) {
   
-  B <- theta[9] * bisquare_B(h1 = h[, 1], h2 = h[, 2],
-                  delta = theta[11:12], r = theta[10],
-                  n1 = n1, n2 = n2,
-                  areas = Areas)
+  #B <- theta[9] * bisquare_B(h1 = h[, 1], h2 = h[, 2],
+                  #delta = theta[11:12], r = theta[10],
+                  #n1 = n1, n2 = n2,
+                  #areas = Areas)
+  
+  
+  View(bisquare_B)
+  
+  source("bisq_fn(2d_B).R")
+  B <- theta[9] * bisq_B(h = h, delta = theta[11:12], r = theta[10],
+         n1 = n1, n2 = n2, area = Areas)
+ 
   
   C1B <- C1 %*% B
   
@@ -417,3 +427,156 @@ fit_m1 <- optim_loglik(par = c(0.01, 1, 5, 15, 0.01, 0.01, 0.6, 1.5, -0.2, 0.1, 
 fit_m2 <- optim_loglik(par = c(1, 0.01, 15, 5, 0.01, 0.01, 1.5, 0.6, -0.2, 0.1, 0, 0),
              model_num = 2, i = NULL)
 ```
+
+
+
+
+```{r}
+str(fit_m1)
+#str(fit_m2)
+
+str(fit_all_data5[[4]])
+str(fit_all_data4[[4]])
+str(fit_all_data3[[4]])
+
+```
+
+## Prediction
+
+- We predict the temperature and pressure fields at unobserved locations using cokriging. 
+- Since these are centered residual fields, so mean zero, and therefore simple cokriging. 
+- the predictive mean and variance can thus be obtained by simple conditioning with a joint multivariate Gaussian distribution. 
+- If `i = NULL` then the data is used to predict at all (observed and unobserved) locations.
+- Otherwise prediction is only carried out at the locations in `i` with the observation in `i` removed
+- when `i` is specified it is assumed that only the covariance matrices associated with the observation locations are supplied.
+- This enables us to use the same function for cross-validation (see below).
+
+```{r}
+
+co_krig <- function(X, i = NULL) {
+  SS <- X$SY + X$So
+  
+  if (is.null(i)) {
+    
+    # predict at all locations, proc level
+    # implies SS at proc level
+    
+    Z <- X$Z
+    Q <- chol2inv(chol(C %*% SS %*% t(C))) %>% as("dgeMatrix")
+    mu_pred <- SS %*% t(C) %*% Q %*% Z %>% as.numeric()
+    var_pred <- diag(SS - SS %*% t(C) %*% Q %*% C %*% SS) %>% as.numeric()
+    
+    data.frame(mu_pred = mu_pred, var_pred = var_pred)
+  } else {
+    
+    # prediction at give i
+    # implies SS at obs level
+    
+    Z <- X$Z
+    Q <- chol2inv(chol(SS[-i, -i])) %>% as("dgeMatrix")
+    
+    mu_pred <- SS[i, -i] %*% Q %*% Z[-i,, drop = F] %>% as.numeric()
+    var_pred <- diag(SS[i, i] - SS[i, -i] %*% Q %*% SS[-i, i]) %>% as.numeric()
+    
+    data.frame(mu_pred = mu_pred, var_pred = var_pred, Z = X$Z[i, ], i = i)
+    
+  }
+}
+```
+
+
+
+### Construct Covariance Matrices in the log_lik (makeC version)
+```{r}
+
+construct_matrices_C <- function(theta, model_num, whole_mesh = F) {
+  
+  B <- theta[9] * bisquare_B(h1 = h[, 1], h2 = h[, 2],
+                  delta = theta[11:12], r = theta[10],
+                  n1 = n1, n2 = n2,
+                  areas = Areas)
+  
+  C1B <- C1 %*% B
+  
+  ## Form matrices (scaled pressure)
+  
+  source("make_cov_fn.R")
+  
+  C11 <- makeC(Var = theta[3], Kappa = theta[5], nu = theta[7], D = Dobs_vec)
+  C2_1 <- makeC(Var = theta[4], Kappa = theta[6], nu = theta[8], D = Dobs_vec)
+  
+  #S11 <- makeS(r = Dobs_vec, var = theta[3], kappa = theta[5], nu = theta[7])
+  #S2_1 <- makeS(r = Dobs_vec, var = theta[4], kappa = theta[6], nu = theta[8])
+  
+  
+  if (model_num %in% c(1, 2) | whole_mesh == T) {
+    
+    C11_proc <- makeC(Var = theta[3], Kappa = theta[5], nu = theta[7], D = D_vec)
+    C12 <- (C1 %*% C11_proc) %*% t(C1B)
+    C21 <- t(C12)
+    C22 <- C2_1 + forceSymmetric(C1B %*% forceSymmetric(C11_proc) %*% t(C1B))
+    
+    
+    #S11_proc <- makeS(r = D_vec, var = theta[3], kappa = theta[5], nu = theta[7])
+    #S12 <- (C1 %*% S11_proc) %*% t(C1B)
+    #S21 <- t(S12)
+    #S22 <- S2_1 + forceSymmetric(C1B %*% forceSymmetric(S11_proc) %*% t(C1B))
+  }
+  
+  
+  if (whole_mesh == T) {
+    
+    C2_1 <- makeC(Var = theta[4], Kappa = theta[6], nu = theta[8], D = D_vec)
+    C11 <- C11_proc
+    C12 <- C11_proc %*% t(B)
+    
+    
+    
+    
+    #S2_1 <- makeS(r = D_vec, var = theta[4], kappa = theta[6], nu = theta[8])
+    
+    #S11 <- S11_proc
+    #S12 <-  S11_proc %*% t(B)
+    #S21 <- t(S12)
+    #S22 <- S2_1 + crossprod(chol(S11_proc) %*% t(B))
+  }
+  
+  
+  ## Form matrices (Unscaled pressure)
+  S11_true <- ifelse (model_num == 1, 1, P_scale^2) * S11
+  S22_true <- ifelse (model_num == 1, P_scale^2, 1) * S22
+  S12_true <- S12 * P_scale
+  S21_true <- S21 * P_scale
+  
+  SY_true <- rbind(cbind(S11_true, S12_true), cbind(S21_true, S22_true)) %>% as("dgeMatrix")
+  
+  
+  #Imat <- function(n) {
+  #  sparseMatrix(i = 1:n, j = 1:n, x = 1)
+  #}
+  source("SparseMat_Imat.R")
+
+  I_m1 <- Imat(m1)
+  So_11_true <- ifelse(model_num == 1, 1, P_scale^2) * theta[1] * I_m1
+  So_22_true <- ifelse(model_num == 1, P_scale^2, 1) * theta[2] * I_m1
+  
+  So_true <- bdiag(So_11_true, So_22_true)
+  
+
+  if (whole_mesh == T) {
+    So_true <- t(C) %*% So_true %*% C
+  }
+  
+  
+  list(SY = SY_true, So = So_true, Z = Form_Z(model_num, scale = F))
+ 
+}
+```
+
+
+
+
+
+
+
+
