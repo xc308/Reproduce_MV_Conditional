@@ -758,7 +758,7 @@ str(Pred_X1_mybi_C)  # my bisq, makeC
 
 save(X1_C, file = "./Results/X1_C.rda")
 save(Pred_X1_C, file = "./Results/Pred_X1_C.rda")
-save(Pred_X1_mybi_C, file = "./Results/Pred_x1_mybi_C.rda")
+save(Pred_X1_mybi_C, file = "./Results/Pred_X1_mybi_C.rda")
 
 
 
