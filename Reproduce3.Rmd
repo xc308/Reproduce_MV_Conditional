@@ -523,10 +523,17 @@ save(ALL4, file = paste0("./Results/Pred_M4.rda"))
 
 construct_matrices_C <- function(theta, model_num, whole_mesh = F) {
   
-  B <- theta[9] * bisquare_B(h1 = h[, 1], h2 = h[, 2],
-                  delta = theta[11:12], r = theta[10],
-                  n1 = n1, n2 = n2,
-                  areas = Areas)
+  #B <- theta[9] * bisquare_B(h1 = h[, 1], h2 = h[, 2],
+   #               delta = theta[11:12], r = theta[10],
+    #              n1 = n1, n2 = n2,
+     #             areas = Areas)
+  
+  
+  source("bisq_fn(2d_B).R")
+  B <- theta[9] * bisq_B(h = h, delta = theta[11:12], r = theta[10],
+         n1 = n1, n2 = n2, area = Areas)
+ 
+  
   
   C1B <- C1 %*% B
   
@@ -672,12 +679,21 @@ optim_loglik <- function(par, model_num, i = NULL) {
 fit the model to the data
 
 ```{r}
-
+# his bisq & makeC
 fit_m1_C <- optim_loglik(par = c(0.01, 1, 5, 15, 0.01, 0.01, 0.6, 1.5, -0.2, 0.1, 0, 0),
                 model_num = 1, i = NULL)
 
 
+
+
+# my bisq & makeC
+fit_m1_mybi_C <- optim_loglik(par = c(0.01, 1, 5, 15, 0.01, 0.01, 0.6, 1.5, -0.2, 0.1, 0, 0),
+                model_num = 1, i = NULL)
+
 str(fit_m1_C)
+str(fit_m1_mybi_C )
+
+# the same
 ```
 
 
@@ -723,17 +739,26 @@ cokrig_C <- function(X, i = NULL) {
 
 
 ```{r}
+
+# his bisq & my makeC
 X1_C <- construct_matrices_C(fit_m1_C$par, model_num = 1, whole_mesh = T)
+# my bisq & makeC
+X1_mybi_C <- construct_matrices_C(fit_m1_mybi_C$par, model_num = 1, whole_mesh = T)
+
 
 Pred_X1_C <- cokrig_C(X = X1_C, i = NULL)
+Pred_X1_mybi_C <- cokrig_C(X = X1_mybi_C, i = NULL)
 
-str(Pred_X1_C)  # his bisq, makeC
+
 str(Pred_X1_hisbisq)  # his bisq, makeS
+str(Pred_X1_C)  # his bisq, makeC
+str(Pred_X1_mybi_C)  # my bisq, makeC
+
 # the same
 
 save(X1_C, file = "./Results/X1_C.rda")
 save(Pred_X1_C, file = "./Results/Pred_X1_C.rda")
-
+save(Pred_X1_mybi_C, file = "./Results/Pred_x1_mybi_C.rda")
 
 
 
