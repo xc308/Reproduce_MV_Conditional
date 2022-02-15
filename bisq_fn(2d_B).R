@@ -17,9 +17,13 @@ bisq_2D <- function(h, delta = c(0, 0), r = 1, A = 1) {
 
 bisq_B <- function(h, delta = c(0, 0), r = 1, A = 1, 
                    area = rep(1, length(h[,1])), n1 = 10L, n2 = 10L) {
+  # 10L means integer
   BA <- area * bisq_2D(h = h, delta = delta, r = r, A = A) 
-  matrix(BA, n2, n1, byrow = T)
+  matrix(BA, n2, n1, byrow = T)  # byrow: every row is all the 2071 locations - si
 }
+
+
+
 
 
 
