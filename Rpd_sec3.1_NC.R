@@ -149,6 +149,108 @@ Cov11 <- Sigma[n1/2, 1:n1] # cov(Y1(s_mid), Y1(si)), i = 1,...n
 Cov12 <- Sigma[n1/2, (n1 + 1):n]
 Cov21 <- Sigma[n1 + n2/2, 1:n1]
 Cov22 <- Sigma[n1 + n2/2, (n1 + 1):n]
+str(Cov11)  # num [1:200]
+
+
+
+#=============================
+# Plot the covariance function
+#=============================
+Cov_df <- expand.grid(df$s, proc1 = c("Y1", "Y2"), 
+                      proc2 = c("Y1", "Y2"))
+
+Cov_df$cov <- c(Cov11, Cov21, Cov12, Cov22) # df 800 rows
+
+
+g_cov <- LinePlotTheme() + 
+  geom_line(data = Cov_df, aes(s, cov)) +
+  facet_grid(proc1 ~ proc2)
+
+
+if(print_figs) ggsave(g_cov,
+                      filename = file.path(img_path, "cov_functions.png"),
+                      width = 12, height = 10, family = "Arial")
+# print_figs <- 0 so don't print, just save
+
+# save first, then decide show or not
+if(show_figs) print(g_cov, width = 12, height = 10)
+
+
+
+#====================
+# Generate noisy data
+#====================
+
+str(df) # data.frame':	200 obs. of  2 variables: s and area
+
+# Given the full Joint Sigma, can simulate from the bivariate
+# field jointly. 
+# Obs are obtained by adding Gaussina error to the generated fields
+# the simulations are added to the df
+
+
+#---------------
+# Generate data
+#---------------
+set.seed(16-02-22)
+
+# since Y ~ MVN (mu, Sigma)
+# Sigma^(-1/2)(Y - mu) = X ~ MVN(0, I) 
+# so Y = Sigma^(1/2)X + mu
+# only need to sample from X~ MVN(0, I)
+
+sample_Y <- t(chol(Sigma)) %*% rnorm(n) # jointly sample Y1&Y2 1:400
+# value of chol() The upper triangular factor of the Choleski 
+# n = n1 + n2; n1 = n2 = 200
+
+df <- df %>%
+  mutate(sample_Y1 = sample_Y[1:n1],
+         sample_Y2 = sample_Y[-(1:n1)],
+         Z1 = sample_Y1 + sigmav * rnorm(n1),
+         Z2 = sample_Y2 + sigmav * rnorm(n2))
+
+Z <- matrix(c(df$Z1, df$Z2)) # concatenate/vectorize obs in to col matrix Z
+# 400 by 1
+
+
+#=======================================
+# Demostrate the benefits of cokriging
+#=======================================
+# only keep half of Z1 on positive part
+# inference on Y1 in the negative domain will be 
+# facilitate via obs Z2
+
+keep_z1 <- 101:200
+keep_z2 <- 1:200
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
