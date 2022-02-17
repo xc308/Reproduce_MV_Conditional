@@ -17,10 +17,10 @@
   # tested for diag block matrices and the full Sigma
 
 
-Make_Sigma_Tst <- function(Var1, Var2, Kappa1, Kapp2, d, B, Test = TRUE) {
+Make_Sigma_Tst <- function(Var1, Var2, Kappa1, Kappa2, d, B, Test = TRUE) {
   source("Matern_32.R")
   
-  C11 <- Matern_32(Var = Var1, Kappa = Kapp1, d)
+  C11 <- Matern_32(Var = Var1, Kappa = Kappa1, d)
   C2_1 <- Matern_32(Var = Var2, Kappa = Kappa2, d)
   
   C12 <- C11 %*% t(B)
