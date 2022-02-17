@@ -17,7 +17,7 @@
   # tested for diag block matrices and the full Sigma
 
 
-Make_Sigma_Tst <- function(Var1, Var2, Kappa1, Kappa2, d, B, Test = TRUE) {
+Make_Sigma_Tst <- function(Var1, Var2, Kappa1, Kappa2, d, B, Test = FALSE) {
   source("Matern_32.R")
   
   C11 <- Matern_32(Var = Var1, Kappa = Kappa1, d)
@@ -28,7 +28,7 @@ Make_Sigma_Tst <- function(Var1, Var2, Kappa1, Kappa2, d, B, Test = TRUE) {
   
   C22 <- C2_1 + B %*% C11 %*% t(B)
   
-  Sigma <- rbind(cbind(C11, C12), cbind(C21, C22))
+  rbind(cbind(C11, C12), cbind(C21, C22))
   
   
   if (Test == TRUE) {
@@ -44,5 +44,7 @@ Make_Sigma_Tst <- function(Var1, Var2, Kappa1, Kappa2, d, B, Test = TRUE) {
     Test_sym_pd(Sigma)
   }
   
-  Sigma
+  #list(Full_Sigma = Sigma, 
+             #C11 = C11, C12 = C12, 
+             #C21 = C21, C22 = C22)
 }
