@@ -189,6 +189,9 @@ View(deldir)
 Area_tess <- Voronoi$summary$dir.area
 head(Area_tess) # [1] 0.111856 0.137289 0.145569 
 quantile(Area_tess)
+# 0%       25%       50%       75%      100%
+# 0.0010010 0.1816745 0.2151660 0.2470085 1.8804040
+
 
 Mesh_df <- data.frame(Lon = mesh_locs[, 1], Lat = mesh_locs[, 2],
            Area_tess = Area_tess, Indx = 1:length(mesh_locs[, 1]))
