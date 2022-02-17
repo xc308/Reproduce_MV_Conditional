@@ -31,7 +31,7 @@ Make_Sigma_Tst <- function(Var1, Var2, Kappa1, Kapp2, d, B, Test = TRUE) {
   Sigma <- rbind(cbind(C11, C12), cbind(C21, C22))
   
   
-  if (Test = TRUE) {
+  if (Test == TRUE) {
     source("fun_test_sym_pd.R")
     
     print("Test the sysmmetry and positive definite of C11: \n")
