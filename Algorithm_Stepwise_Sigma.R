@@ -79,6 +79,18 @@ Sgm
 # when l = 3, k-i === 2, so on
 
 
+## try sparse structure
+sparse_Sgm <- as(Sgm, "sparseMatrix")
+sparse_Sgm
+
+sparse_Sgm <- Matrix(Sgm, sparse = T)
+
+print(object.size(Sgm))
+# 416 bytes
+
+print(object.size(sparse_Sgm))
+summary(sparse_Sgm)
+
 
 #--------------------
 # Block matrix Sigma
@@ -116,6 +128,38 @@ for(l in seq(2, 5)) {
 Sgm
 
 
+#-----------
+# Questions
+#-----------
+# Why got error like length missmatch for matrix replacement
+# when adopt sparseMatrix?
+
+
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Sparse matrix element replace
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+library(Matrix)
+
+# Example 1
+n <- 3
+K <- Matrix(0, n*n, n*(n-1)/2, sparse = T )
+str(K)
+
+for (i in 1:(n - 1)) {
+  K[((i - 1) * (n + 1) + 2) : (i * n), 
+    (1 + (i - 1) * (n - i/2)) : (i * (n - i) * (i + 1))/2] <- diag(n - i)
+  
+}
+K
+
+
+
+
+
+
+
+
+
 #----------------------------
 # Sparse Unitilites functions
 #----------------------------
@@ -124,7 +168,13 @@ I_mat <- function(n) {
   sparseMatrix(i = 1:n, j = 1:n, x = 1)
 }
 I_mat(2)  
-  
+ 
+B_lk <- cbind(c(1, 0), c(0, 1))
+Try <- I_mat(2) %*% B_lk
+str(Try)
+
+
+
 O_mat <- function(n) {
   sparseMatrix(i = 1:n, j = 1:n, x = 0)
 }
