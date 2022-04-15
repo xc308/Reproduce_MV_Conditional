@@ -455,6 +455,61 @@ sparse_matNA
 
 
 
+##----------------------------------------
+# Try sparse Matrix partially replacement
+##----------------------------------------
+n <- 5L
+I5 <- diag(n)
+object.size(I5) # 416 bytes
+
+I5_sp <- Matrix(I5, sparse = T)
+object.size(I5_sp)
+str(I5_sp)
+
+
+sparse_M <- sparseMatrix(
+  i = sample(1:500, size = 50, replace = T),
+  j = sample(1:500, size = 50, replace = T),
+  x = rnorm(50),
+  dims = c(500, 500)
+)
+
+
+sparse_M 
+# 500 x 500 sparse Matrix of class "dgCMatrix"
+
+# convert back to regular matrix
+dense_M <- Matrix(sparse_M, sparse = F)
+object.size(sparse_M)  #4168 bytes
+object.size(dense_M)   #2001176 bytes
+dense_M[1:10, 1:10]
+## so, sparse matrix saves storage
+
+
+## sparse matrix partially replace
+sparse_M[1:5, 1:5] <- I5
+sparse_M[1:10, 1:10]
+
+
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Sparse matrix element replace  
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Example 2
+
+library(Matrix)
+
+
+n <- 3
+K <- Matrix(0, n*n, n*(n-1)/2, sparse = T )
+str(K)
+
+for (i in 1:(n - 1)) {
+  K[((i - 1) * (n + 1) + 2) : (i * n), 
+    (1 + (i - 1) * (n - i/2)) : (i * (n - i) * (i + 1))/2] <- diag(n - i)
+  
+}
+K
+
 
 
 
