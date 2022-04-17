@@ -105,22 +105,22 @@ for(l in seq(2, 5)) {
   for(k in seq(1, 4)) {
     if (abs(k - l) >= 2) { # k !in pa(l)
       #Sgm_kl = Sgm_lk = O_mat(n)  
-      Sgm_kl = Sgm_lk = matrix(0, 2, 2)
+      Sgm_kl = Sgm_lk = matrix(0, n, n)
       Sgm[((k-1)*n + 1):(k*n), ((l-1)*n + 1):(l*n)] = Sgm_kl
       Sgm[((l-1)*n + 1):(l*n), ((k-1)*n +1):(k*n)] = Sgm_lk
       
     } else{
       i = k - (l - 1)  # see notes below
-      Sgm_kk <- Sgm[((k-i)*n -1):((k-i)*n), ((k-i)*n - 1):((k-i)*n)]
+      Sgm_kk <- Sgm[((k-i)*n - (n-1)):((k-i)*n), ((k-i)*n - (n-1)):((k-i)*n)]
       
-      B_lk <- cbind(c(1, 0), c(0, 1))
-      Phi_l <- cbind(c(1, 0), c(0, 1))
+      B_lk <- diag(n)  # n * n identity
+      Phi_l <- diag(n)
       Sgm_kl = Sgm_lk = Sgm_kk %*% B_lk
       Sgm_ll = Phi_l + B_lk %*% Sgm_kl
       
-      Sgm[(n*k - 1):(n*k), (n*l - 1):(n*l)] <- Sgm_kl
-      Sgm[(n*l - 1):(n*l), (n*k - 1):(n*k)] <- Sgm_lk
-      Sgm[(n*l - 1):(n*l), (n*l - 1):(n*l)] <- Sgm_ll
+      Sgm[(n*k - (n-1)):(n*k), (n*l - (n-1)):(n*l)] <- Sgm_kl
+      Sgm[(n*l - (n-1)):(n*l), (n*k - (n-1)):(n*k)] <- Sgm_lk
+      Sgm[(n*l - (n-1)):(n*l), (n*l - (n-1)):(n*l)] <- Sgm_ll
       
     }
   }
@@ -133,30 +133,89 @@ Sgm
 #-----------
 # Why got error like length missmatch for matrix replacement
 # when adopt sparseMatrix?
+  # as they are different in structure  
+  # sparse matrix can join normal calculation, e.g. addition and multiplication
+  # but is cannot be assigned to a regular matrix unless they align their format first
+  # either both in sparse or both in regular
 
 
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+#--------------------------------------#
+# with Cross-cov and var update formula 
 # Sparse matrix element replace
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-library(Matrix)
+#--------------------------------------#
 
-# Example 1
-n <- 3
-K <- Matrix(0, n*n, n*(n-1)/2, sparse = T )
-str(K)
-
-for (i in 1:(n - 1)) {
-  K[((i - 1) * (n + 1) + 2) : (i * n), 
-    (1 + (i - 1) * (n - i/2)) : (i * (n - i) * (i + 1))/2] <- diag(n - i)
-  
+Sgm_sp <- Matrix(0, 5, 5, sparse = T)
+Sgm_sp[1, 1] <- 2
+b_lk <- 1
+phi_l <- 1
+for(l in seq(2, 5)) {
+  for(k in seq(1, 4)) {
+    if (abs(k - l) >= 2) { # k !in pa(l)
+      Sgm_kl = Sgm_lk = 0
+      Sgm_sp[k, l] = Sgm_kl
+      Sgm_sp[l, k] = Sgm_lk
+      
+    } else{
+      i = k - (l - 1)  # see notes below
+      Sgm_kk <- Sgm_sp[k-i, k-i]
+      Sgm_kl = Sgm_lk = Sgm_kk * b_lk
+      Sgm_ll = phi_l + b_lk * Sgm_kl
+      
+      Sgm_sp[k, l] <- Sgm_kl
+      Sgm_sp[l, k] <- Sgm_lk
+      Sgm_sp[l, l] <- Sgm_ll
+    }
+  }
 }
-K
+Sgm_sp
 
 
 
+#--------------------
+# Block matrix Sigma
+# sparse matrix
+#--------------------
 
+n <- 2
+n <- 3
+#n <- 200
+Sgm_sp <- Matrix(0, 5*n, 5*n, sparse = T)
+#str(Sgm_sp) # Formal class 'ddiMatrix'
+Sgm_sp[1:(1*n), 1:(1*n)] <- Matrix(2, nrow = n, ncol = n, sparse = T)
+B_lk <- Matrix(diag(n), sparse = T)
+Phi_l <- Matrix(diag(n), sparse = T)
+for(l in seq(2, 5)) {
+  for(k in seq(1, 4)) {
+    if (abs(k - l) >= 2) { # k !in pa(l)
+      Sgm_kl = Sgm_lk = Matrix(0, n, n, sparse = T)  
+      #Sgm_kl = Sgm_lk = matrix(0, n, n)
+      Sgm_sp[((k-1)*n + 1):(k*n), ((l-1)*n + 1):(l*n)] = Sgm_kl 
+      Sgm_sp[((l-1)*n + 1):(l*n), ((k-1)*n +1):(k*n)] = Sgm_lk  
+      
+    } else{
+      i = k - (l - 1)  # see notes below
+      Sgm_kk <- Sgm_sp[((k-i)*n - (n-1)):((k-i)*n), ((k-i)*n - (n-1)):((k-i)*n)]
+      
+      #B_lk <- diag(n)  # n * n identity
+      #Phi_l <- diag(n)
+      Sgm_kl = Sgm_kk %*% t(B_lk)
+      Sgm_lk = B_lk %*% Sgm_kk
+      Sgm_ll = Phi_l + B_lk %*% Sgm_kl
+      
+      Sgm_sp[(n*k - (n-1)):(n*k), (n*l - (n-1)):(n*l)] <- Sgm_kl
+      Sgm_sp[(n*l - (n-1)):(n*l), (n*k - (n-1)):(n*k)] <- Sgm_lk
+      Sgm_sp[(n*l - (n-1)):(n*l), (n*l - (n-1)):(n*l)] <- Sgm_ll
+      
+    }
+  }
+}
 
+Sgm_sp
+print(object.size(Sgm_sp), units = "Kb")
+# 2.9 Kb
 
+image(Sgm_sp)
 
 
 
@@ -169,9 +228,18 @@ I_mat <- function(n) {
 }
 I_mat(2)  
  
-B_lk <- cbind(c(1, 0), c(0, 1))
+
+B_lk <- I_mat(2)
 Try <- I_mat(2) %*% B_lk
 str(Try)
+
+M <- Matrix(1, 10, 10, sparse = T)
+str(M)
+
+M[1:3, 1:3]
+
+n = 2
+Matrix(diag(n), sparse = T)
 
 
 
