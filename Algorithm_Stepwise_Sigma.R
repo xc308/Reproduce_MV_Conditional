@@ -131,13 +131,17 @@ Sgm
 #-----------
 # Questions
 #-----------
-# Why got error like length missmatch for matrix replacement
-# when adopt sparseMatrix?
+# 1. Why got error like length missmatch for matrix replacement
+  # due to different format of sparse matrix
+# 2. when adopt sparseMatrix?
   # as they are different in structure  
   # sparse matrix can join normal calculation, e.g. addition and multiplication
   # but is cannot be assigned to a regular matrix unless they align their format first
   # either both in sparse or both in regular
 
+# 3. When will the additional storage of spare matrix (e.g. index) 
+  # is compensated?
+  # when the # of non-zero < (m (n − 1) − 1) / 2 if M is m by n
 
 
 #--------------------------------------#
@@ -191,7 +195,6 @@ for(l in seq(2, 5)) {
   for(k in seq(1, 4)) {
     if (abs(k - l) >= 2) { # k !in pa(l)
       Sgm_kl = Sgm_lk = Matrix(0, n, n, sparse = T)  
-      #Sgm_kl = Sgm_lk = matrix(0, n, n)
       Sgm_sp[((k-1)*n + 1):(k*n), ((l-1)*n + 1):(l*n)] = Sgm_kl 
       Sgm_sp[((l-1)*n + 1):(l*n), ((k-1)*n +1):(k*n)] = Sgm_lk  
       
@@ -244,9 +247,13 @@ n = 2
 Matrix(diag(n), sparse = T)
 
 
-
+n = 3
 O_mat <- function(n) {
   sparseMatrix(i = 1:n, j = 1:n, x = 0)
 }
-O_mat(2)
+O_mat(3)
+
+
+Matrix(0, n, n, sparse = T)  
+identical(O_mat(3), Matrix(0, n, n, sparse = T))
 
