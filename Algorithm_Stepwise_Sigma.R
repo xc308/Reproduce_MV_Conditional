@@ -179,12 +179,14 @@ Sgm_sp
 
 n <- 2
 n <- 3
+n <- 5
 #n <- 200
-Sgm_sp <- Matrix(0, 5*n, 5*n, sparse = T)
-#str(Sgm_sp) # Formal class 'ddiMatrix'
+Sgm_sp <- Matrix(0, 5*n, 5*n, sparse = T) #str(Sgm_sp) # Formal class 'ddiMatrix'
 Sgm_sp[1:(1*n), 1:(1*n)] <- Matrix(2, nrow = n, ncol = n, sparse = T)
-B_lk <- Matrix(diag(n), sparse = T)
-Phi_l <- Matrix(diag(n), sparse = T)
+B_lk <- I_mat(n)   # "dgCMatrix" can be product with "ddiMatrix"
+Phi_l <- I_mat(n)  # ok
+#B_lk <- Matrix(diag(n), sparse = T)  # ok
+#Phi_l <- Matrix(diag(n), sparse = T) # ok
 for(l in seq(2, 5)) {
   for(k in seq(1, 4)) {
     if (abs(k - l) >= 2) { # k !in pa(l)
@@ -216,7 +218,7 @@ print(object.size(Sgm_sp), units = "Kb")
 # 2.9 Kb
 
 image(Sgm_sp)
-
+rm(Sgm_sp)
 
 
 #----------------------------
