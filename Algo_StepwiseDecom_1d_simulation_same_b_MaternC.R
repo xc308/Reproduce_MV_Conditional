@@ -6,6 +6,11 @@
 # delta in b(.,.) remains the same for all pairs of variables
 
 
+##=======
+# Set up
+##=======
+img_path <- "./Algo_Simulation_Results/"
+
 
 ##~~~~~~~~~~~~~~~~~~~~~~~~
 # set up simulation domain
@@ -45,8 +50,25 @@ kappa_21 <- 7.5      # large scale parameter for C2|1
 
 nu_11 <- nu_21 <- 1.5 # special Matern form
 
+A <- 0
+A <- 0.1
+A <- 0.5   # Yes
+A <- 1     # Yes amplitude for b(.;,)
+A <- 1.1   # Yes
+A <- 1.3   # Yes
 
-A <- 1              # amplitude for b(.;,)
+A <- 5     # No
+A <- 2     # No
+A <- 1.9   # No
+A <- 1.8   # No
+A <- 1.5   # No
+A <- 1.4   # No
+
+A <- -1    # Yes
+A <- -0.5  # Yes
+
+
+
 delta <- -0.3       # fix shift parameter for all variable pair
 r <- 0.3            # aperture parameter
 
@@ -61,8 +83,8 @@ str(h) # num [1:20, 1:20]
 H <- t(outer(df$s, df$s, FUN = "-"))
 
 b_kl <- function(A = 1, delta, r, d) {
-  y <- abs(d - delta)  # deliberately exaggerate asymmetry
-  A * (1- (y/r)^2)^2 * (y < r)
+  y <- abs(d - delta)       # deliberately exaggerate asymmetry
+  A * (1- (y/r)^2)^2 * (y < r)    # y/r!!! 
 }
 
 
@@ -94,9 +116,10 @@ source('Matern_32.R')
 C11 <- Matern_32(Var = sigma2_11, Kappa = kappa_11, d_vec = D_vec)
 C2_1 <- Matern_32(Var = sigma2_21, Kappa = kappa_21, d_vec = D_vec)
 
-#image(C11)
+image(C11)
 quantile(C11)
 quantile(C2_1)
+
 
 ##~~~~~~~~~~~~~~~~~~~~~~~
 ## Test symmetry and pd
@@ -157,9 +180,6 @@ Test_sym_pd(Sgm_sp)
 # [1] "Symmetric: Yes"
 # [1] "p.d.: No"
 
-str(Sgm_sp)
-try <- chol(Sgm_sp)
-
 image(Sgm_sp)
 ## 1. obvious variance matrix Sgm_kk and cross cov matrix
     ## Sgm_kl propagation, and the later the order of variables
@@ -185,8 +205,9 @@ quantile(Sgm_sp@x)
 # Save plots
 #===========
 # Customizing the output
-pdf("Stepwise_Sgm_1d_simu.pdf",         # File name
-    width = 8, height = 7) # Width and height in inches
+pdf(file = paste0(img_path, "Sgm_1d_same_delta.pdf", sep = ""),    
+    width = 8, height = 7,    # in inches
+    colormodel = "cmyk") 
     #bg = "white",          # Background color
     #colormodel = "cmyk" ,   # Color model (cmyk is required for most publications)
     #paper = "A4")          # Paper size
@@ -197,5 +218,35 @@ image(Sgm_sp)
 # Closing the graphical device
 dev.off() 
 
-pdf(file = paste0(img_path, "/Stepwise_Sgm_1d_simu_same_delta.pdf", sep = ""))
+
+pdf()
+
+
+
+
+
+##==========
+# try ggplot (not good)
+##==========
+Sgm_sp_smry <- summary(Sgm_sp)
+str(Sgm_sp_smry)
+# Classes ‘sparseSummary’ and 'data.frame':	5040 obs. of  3 variables:
+#$ i: int  1 2 3 4 5 6 7 8 9 10 ...
+#$ j: int  1 1 1 1 1 1 1 1 1 1 ...
+#$ x: num  1 0.974 0.91 0.827 0.736 
+
+
+library(ggplot2)
+ggplot(Sgm_sp_smry, aes(x = i, y = j)) + 
+  geom_raster(aes(fill = x))
+
+  ggplot(faithfuld, aes(waiting, eruptions)) +
+  geom_raster(aes(fill = density))
+
+
+
+
+
+
+
 
