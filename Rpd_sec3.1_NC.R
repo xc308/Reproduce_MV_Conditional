@@ -1,6 +1,8 @@
 ##************************
 ## Reproduce 3.1 (Cressie)
 ##************************
+# see draft book 12
+
 
 ##==========
 ## Packages
@@ -19,7 +21,9 @@ library(gridExtra)
 library(grid)
 library(extrafont)
 loadfonts()
-
+install.packages("FRK")
+library("FRK")
+YES
 
 ##========
 ## Setup
@@ -49,6 +53,12 @@ print_figs <- 1               # save to the Results folder
 
 ds <- 0.01  # space difference
 s <- seq(-1 + ds/2, 1 - ds/2, by = ds) # result in a set of centroids
+str(s) #num [1:200] -0.995 -0.985
+
+# compare
+#s2 <- seq(-1, 1, by = ds)
+#str(s2) # num [1:201] -1 -0.99 
+
 df <- data.frame(s = s, area = ds)
 
 n1 <- n2 <- nrow(df)  # process 
@@ -65,6 +75,7 @@ kappa1 <- 25        ## land scale of C11(.)
 kappa2 <- 75        ## land scale of C2|1(.)
 
 nu11 <- nu2_1 <- 1.5  ## fixed smooth parameter for Matern
+                      # var * (1 + kappa * abs(d)) exp(-kappa * abs(d))
 
 A <- 5              ## Amplitude of b(.)
 r <- 0.3            ## Aperture of b(.)
@@ -82,29 +93,40 @@ sigmav <- 0.5       ## obs error std
 # now construct the full covariance matrix with block matrices
 # C11, C12, C21, C22
 # but first need to construct matrix B: 
-  # a b(,) evaluated at grid cells multiplied by grid spacing (to approximate integration)
+  # a b(,) evaluated at grid cells multiplied by grid spacing eta (to approximate integration)
   # i.e.B(j, k) = eta_k * b(s_j, v_k)
 
 
 #-----------------------------
 # Construct b and B(include grid area for integration)
 #-----------------------------
-#h <- outer(df$s, df$s, FUN = "-")
-#h[1:10, 1:10]
+h <- outer(df$s, df$s, FUN = "-")
+h[1:10, 1:10]
+str(h) #num [1:200, 1:200]
 
 H <- t(outer(df$s, df$s, FUN = "-"))    # displacement
-#H[1:10, 1:10] # each row is the dist btw si with the rest, i = 1..n
+# H: num [1:200, 1:200]
+H[1:10, 1:10] 
+# each row is the dist btw si with the rest, i = 1..n
 
-
-bisq_1d <- function(A = 1, d, delta = 0, r) {
+# evaluate the bisq_1d on the grid
+bisq_1d <- function(d, A = 1, delta = 0, r) {
   y <- abs(d - delta)
   A * (1 - (y/r)^2)^2 * (y < r)
 }
 
+
 B <- A * bisq_1d(d = H, delta = delta, r = r) * ds  # find B
+str(B) #num [1:200, 1:200] 
+
+B[1:20, 1:20] 
+solve(B)  # Error in solve.default(B) : 
+# Lapack routine dgesv: system is exactly singular: U[200,200] = 0
 
 #B_his <- A * bisquare_1d(h = H, delta = delta, r = r) * ds
 #all(B == B_his) # [1] TRUE
+
+View(bisquare_1d)
 
 
 #-----------------------------
@@ -117,24 +139,47 @@ Dvec <- as.double(c(D)) # vectorize distance
 source("Matern_32.R")
 C11 <- Matern_32(Var = sigma2_11, Kappa = kappa1, d = Dvec)
 C2_1 <- Matern_32(Var = sigma2_21, Kappa = kappa2, d = Dvec)
+# str(C11) num [1:200, 1:200]
 
 C12 <- C11 %*% t(B)  # t(C21)
 C21 <- B %*% C11
 
+all(t(C12) == C21) # TRUE
+par(mfrow = c(1, 2), mar = c(1, 1, 1, 1))
+image(C12)
+image(C21)
+
 C22 <- C2_1 + B %*% C11 %*% t(B)
 
 
-##*************************
+#~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Compare with Matern_32_abs
+#~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+source("Matern_32_abs.R")
+H[1:4, 1:4] # with positive and negative displacement
+str(H)
+H_vec <- as.double(c(H))
+
+C11_abs <- Matern_32_abs(Var = sigma2_11, Kappa = kappa1, d_vec = H_vec)
+all(C11_abs == C11) # [1] TRUE
+
+
+
+
+
+##~~~~~~~~~~~~~~~~~~~~~~~~**
 ## Test if symmetry and pd
 source("fun_test_sym_pd.R")
 
 Test_sym_pd(C11)
 Test_sym_pd(C2_1)
 Test_sym_pd(C22)
-##***********************
+##~~~~~~~~~~~~~~~~~~~~~~~~**
 
 Sigma <- rbind(cbind(C11, C12), cbind(C21, C22))
 Test_sym_pd(Sigma) # YES
+image(Sigma)
 
 
 ##----------------------
@@ -157,12 +202,15 @@ str(Sigma_lst)
 
 
 
-##*****************
+##----------------------
 ## To extract individual marginal and cross-covariance functions at 
 ## the midpoint location of D, i.e. s = 0
 
 # to find the mid-point of D which is the 0 btw [-1,1]
 D[n1/2, n1/2]  # [1] 0  not D_vec
+H[n1/2, n2/2]  # [1] 0 
+H[n1/2, 1:n1]
+
 
 all(diag(D) == 0)  # [1] TRUE
 
@@ -184,6 +232,11 @@ str(Cov11)  # num [1:200]
 #=============================
 Cov_df <- expand.grid(s = df$s, proc1 = c("Y1", "Y2"), 
                       proc2 = c("Y1", "Y2"))
+# [1:200][Y1,...Y1][Y1,..Y1]
+#   [1:200][Y2,...,Y2][Y1,..Y1] 
+#     [1:200][Y1,..Y1][Y2,...Y2]
+#       [1:200][Y2,..Y2][Y2,...Y2]
+
 
 Cov_df$cov <- c(Cov11, Cov21, Cov12, Cov22) # df 800 rows
 # the order of Cov21 and Cov12 matters
@@ -214,7 +267,7 @@ str(df) # data.frame':	200 obs. of  2 variables: s and area
 
 # Given the full Joint Sigma, can simulate from the bivariate
   # field jointly. 
-# Obs are obtained by adding Gaussina error to the generated fields
+# Obs are obtained by adding Gaussian error to the generated fields
 # the simulations are added to the df
 
 
@@ -228,9 +281,12 @@ set.seed(16-02-22)
 # so Y = Sigma^(1/2)X + mu
 # only need to sample from X~ MVN(0, I)
 
+
 sample_Y <- t(chol(Sigma)) %*% rnorm(n) # jointly sample Y1&Y2 1:400
-# value of chol() The upper triangular factor of the Choleski 
+# value of chol() The lower triangular factor (numbers in lower) of the Choleski 
 # n = n1 + n2; n1 = n2 = 200
+# sample_Y ~ MVN(0, Sigma)
+
 
 df <- df %>%
   mutate(sample_Y1 = sample_Y[1:n1],
@@ -249,7 +305,7 @@ Z <- matrix(c(df$Z1, df$Z2)) # concatenate/vectorize obs in to col matrix Z
 # inference on Y1 in the negative domain will be 
 # facilitate via obs Z2
 
-keep_z1 <- 101:200
+keep_z1 <- 101:200  # Z1 only keep positive part
 keep_z2 <- 1:200
 
 
@@ -286,7 +342,8 @@ co_krig <- function(df, A, delta, r, obs_ind, name = NULL) {
   ## cokrig formula
   mu <- Sigma[, obs_ind] %*% Q %*% Z[obs_ind, ] # 400*300 %*% 300*300 %*% 300*1 = 400*1
   sd <- diag(Sigma - Sigma[, obs_ind] %*% Q %*% t(Sigma[, obs_ind]))  # diag(400 * 400) = 400
-  
+            # Var(Y1_ms) - Var{E[Y1_ms | Z1_obs, Z2_obs]} 
+            # both are variance, so need diag
   
   ## save results
   df[paste0(name, "_mu1")] <- mu[1:n1]
@@ -306,14 +363,15 @@ co_krig <- function(df, A, delta, r, obs_ind, name = NULL) {
 keep_z1 <- 101:200
 keep_z2 <- 1:200
 
-df$keep_Z1 <- 1:nrow(df) %in% keep_z1 
+df$keep_Z1 <- 1:nrow(df) %in% keep_z1  
+  #  %in% to check if elements in one vector are present in another vector.
+  # returns a logical vector indicating whether each element of the first vector is found in the second vector.
 # $ keep_Z1  : logi  FALSE FALSE FALSE
 df$keep_Z2 <- 1:nrow(df) %in% keep_z2
 
-obs_ind <- c(keep_z1, keep_z2 + n1) # lower z, 101-200-201-400
-# int [1:300] 101 102 103
+obs_ind <- c(keep_Z1, keep_Z2 + n1) # lower z, 101-200-201-400
+# int [1:400] 0 0 0 0 0 0 0 0 0 0
 
-str(obs_ind)
 
 
 #-----------------------
@@ -321,10 +379,13 @@ str(obs_ind)
 #-----------------------
 
 # 1. Kriging predicator using only Z1 (Y1*): A set to 0; Y1 and Y2 indepandent
+
 # 2. Cokrig predictor using both Z1 and Z2 under misspecified model (Y1@):
-    # A and r are found using maximum likelihood with Delta = 0 (no asymmetry)
+    # A and r are found using maximum likelihood with Delta = 0 (symmetric multivariate)
     # although we know true process has asymetry with delta = -.3
-# 3. Cokrig using both Z1 and Z2 under true model (Y1_true): A and r are fixed to their true values
+
+# 3. Cokrig using both Z1 and Z2 under true model (Y1_true): 
+      # A and r are fixed to their true values   (asymmetric multivaraite)
 
 # For 1, equivalent to simple univariate kriging
 # For 2, use log-likelihood to find the parameters by optimization 1sr and then cokrig
@@ -439,7 +500,7 @@ df <- df %>%
   co_krig(A = non_symm_par[1], delta = non_symm_par[3], r = non_symm_par[2], obs_ind = obs_ind, name = "asym_model")
 
 
-str(df)
+str(df) # 'data.frame':	200 obs. of  24 variables:
 head(df)
 
 
@@ -487,6 +548,7 @@ t <- df %>%
   gather(process, z, sample_Y1, indp_model_mu1, sym_model_mu1, true_model_mu1) %>%
   mutate(group = substr(process, 1, 4))
   # subtr(x, start, stop) extract/replace  substrings in a char vector
+  # add one more variable call group, whose elements are the 1-4 char of values of process variable
 
 head(t, 30)
 tail(t, 30)
@@ -538,13 +600,23 @@ str(df_estY1)
 #$ s      : num  -0.995 -0.985 -0.975 -0.965 -0.955 -0.945 -0.935 -0.925 -0.915 -0.905 ...
 #$ process: Factor w/ 4 levels "indp_model_mu1",..: 2 2 2 2 2 2 2 2 2 2 ...
 
+levels(df_estY1$process)
+# [1] "asym_model_mu1" "indp_model_mu1"
+# [3] "sample_Y1"      "sym_model_mu1" 
+# [5] "true_model_mu1"
+
 df_estY1$process <- relevel(df_estY1$process, ref = 3) # reorder the 2nd level 
 # $ process: Factor w/ 4 levels "sample_Y1","indp_model_mu1",..: 1 1 1 1 1 1 1 1 1 1 ...
+levels(df_estY1$process)
+# [1] "sample_Y1"      "asym_model_mu1"
+# [3] "indp_model_mu1" "sym_model_mu1" 
+# [5] "true_model_mu1"
+
 
 
 est_plotY1_no_CIs <- LinePlotTheme() + 
   geom_line(data = df_estY1, 
-            aes(s, z, colour = process,linetype = process,size = process)) +
+            aes(s, z, colour = process,linetype = process,linewidth = process)) +
   theme(legend.title = element_blank(),
         plot.margin = grid::unit(c(3, 0, 0, 0), unit = "mm")) +
   scale_linetype_manual(values = c("solid", "dashed", "dotted", "dotdash", "twodash"),
