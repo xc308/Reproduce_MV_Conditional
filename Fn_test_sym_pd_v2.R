@@ -37,18 +37,19 @@ Test_sym_pd_V2 <- function(test.mat, Print = T) {
       PD <- rbind(PD, 1)
     } else{ PD <- rbind(PD, 0)}
     
-    RES <- data.frame(Symmetric = Sym, PD = PD)
+    data.frame(Symmetric = Sym, PD = PD)
   }
 }
 
 
 
 #Res <- Test_sym_pd_V2(Sigma, Print = F)
+
 #str(Res)
 # 'data.frame':	1 obs. of  2 variables:
 # $ Symmetric: num 1
 # $ PD       : num 1
 
 #RES <- Test_sym_pd_V2(Sigma, Print = T)
-#RES <- Test_sym_pd_V2(Sigma, Print = F)
-
+RES <- Test_sym_pd_V2(Sigma, Print = F)
+rm(RES)
