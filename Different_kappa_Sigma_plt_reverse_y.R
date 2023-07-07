@@ -126,7 +126,7 @@ make_plt_Sigma <- function(Kappa11, Kappa21) {
   image(1:nrow(Sigma), 1:ncol(Sigma), rev_Sigma, 
         xlab = "s", ylab = "u")
   title(main = paste0("Kappa11= ", Kappa11, ", Kappa21= ", Kappa21),
-        cex.main = 0.8)
+        cex.main = 1.5)
   
   # rename the axis of image
   #x_lab <- "Locations s"
@@ -172,7 +172,8 @@ Kappa21 <- 75  # rho is very small, corr small, very rough
 
 image_path <- "./Results/Fig/"
 
-png(paste0(image_path, "different_kappas.png"), width = 8, height = 7, units = "in", res = 300)
+png(paste0(image_path, "different_kappas.png"), width = 8, height = 7, 
+    units = "in", res = 300)
 par(mfrow = c(1, 2))
 
 Kappa11 <- 75  # very rough
