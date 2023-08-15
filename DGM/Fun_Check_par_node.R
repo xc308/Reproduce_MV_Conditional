@@ -24,7 +24,6 @@
 hierarchy_data <- data.frame(
   node_id = c(1, 2, 3, 4),
   par_id = c(NA, 1, 2, 1)
-  #ch_id = list(list(2, 4), list(3), list(), list())
 )
 
 head(hierarchy_data)
@@ -39,20 +38,21 @@ head(hierarchy_data)
 # output: parent node id for the query node
 
 
-Check_par_node <- function(node_id, data = hierarchy_data) {
+Check_par_node <- function(Node, data = hierarchy_data) {
   
   if (!all(colnames(data) == c("node_id", "par_id"))) {
     stop("Data must have two columns with the first col name 'node_id' and the second name 'par_id'")
   }
   
-  # input node_id, return its parent id
-  par_index <- data[node_id, ]$par_id
   
-  if (is.na(par_index)) {
-    return("The input node has no parent.")
-  } else {
-    return(par_index)
-  }
+  # Filter rows where node_id equals desired query node
+  rows_matching_condition <- hierarchy_data$node_id == Node
+  
+  # Extract rows that match the condition
+  par_index <- hierarchy_data[rows_matching_condition, ]$par_id
+
+  
+  ifelse(is.na(par_index), return("The query node has no parent."), return(par_index))
   
 }
 
@@ -60,8 +60,15 @@ Check_par_node <- function(node_id, data = hierarchy_data) {
 #-----
 # Test
 #------
-Check_par_node(node_id = 3, data = hierarchy_data) # [1] 2
-Check_par_node(node_id = 4, data = hierarchy_data) # [1] 1
+Check_par_node(Node = 3, data = hierarchy_data) # [1] 2
+Check_par_node(Node = 4, data = hierarchy_data) # [1] 1
 
 
+hierarchy_data2 <- data.frame(
+  node_id = c(1, 2, 3, 3, 4, 4),
+  par_id = c(NA, 1, c(2, 1), c(2, 3))
+)
+
+Check_par_node(Node = 3, data = hierarchy_data2)
+Check_par_node(Node = 4, data = hierarchy_data2)
 
